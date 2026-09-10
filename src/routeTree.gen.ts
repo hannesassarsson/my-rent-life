@@ -15,7 +15,12 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as AuthenticatedAdminArendenRouteImport } from './routes/_authenticated/admin.arenden'
+import { Route as AuthenticatedAdminBoendeRouteImport } from './routes/_authenticated/admin.boende'
+import { Route as AuthenticatedAdminFastigheterRouteImport } from './routes/_authenticated/admin.fastigheter'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
+import { Route as AuthenticatedAdminArendenIdRouteImport } from './routes/_authenticated/admin.arenden.$id'
+import { Route as AuthenticatedAdminBoendeIdRouteImport } from './routes/_authenticated/admin.boende.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,25 +51,65 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminArendenRoute =
+  AuthenticatedAdminArendenRouteImport.update({
+    id: '/arenden',
+    path: '/arenden',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminBoendeRoute =
+  AuthenticatedAdminBoendeRouteImport.update({
+    id: '/boende',
+    path: '/boende',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminFastigheterRoute =
+  AuthenticatedAdminFastigheterRouteImport.update({
+    id: '/fastigheter',
+    path: '/fastigheter',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAdminArendenIdRoute =
+  AuthenticatedAdminArendenIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AuthenticatedAdminArendenRoute,
+  } as any)
+const AuthenticatedAdminBoendeIdRoute =
+  AuthenticatedAdminBoendeIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AuthenticatedAdminBoendeRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/app': typeof AuthenticatedAppRouteWithChildren
+  '/admin/arenden': typeof AuthenticatedAdminArendenRouteWithChildren
+  '/admin/boende': typeof AuthenticatedAdminBoendeRouteWithChildren
+  '/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
+  '/admin/arenden/$id': typeof AuthenticatedAdminArendenIdRoute
+  '/admin/boende/$id': typeof AuthenticatedAdminBoendeIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/admin/arenden': typeof AuthenticatedAdminArendenRouteWithChildren
+  '/admin/boende': typeof AuthenticatedAdminBoendeRouteWithChildren
+  '/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
+  '/admin/arenden/$id': typeof AuthenticatedAdminArendenIdRoute
+  '/admin/boende/$id': typeof AuthenticatedAdminBoendeIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -73,14 +118,39 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
+  '/_authenticated/admin/arenden': typeof AuthenticatedAdminArendenRouteWithChildren
+  '/_authenticated/admin/boende': typeof AuthenticatedAdminBoendeRouteWithChildren
+  '/_authenticated/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
+  '/_authenticated/admin/arenden/$id': typeof AuthenticatedAdminArendenIdRoute
+  '/_authenticated/admin/boende/$id': typeof AuthenticatedAdminBoendeIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/admin' | '/app' | '/admin/' | '/app/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/admin'
+    | '/app'
+    | '/admin/arenden'
+    | '/admin/boende'
+    | '/admin/fastigheter'
+    | '/admin/'
+    | '/app/'
+    | '/admin/arenden/$id'
+    | '/admin/boende/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/admin' | '/app'
+  to:
+    | '/'
+    | '/auth'
+    | '/admin/arenden'
+    | '/admin/boende'
+    | '/admin/fastigheter'
+    | '/admin'
+    | '/app'
+    | '/admin/arenden/$id'
+    | '/admin/boende/$id'
   id:
     | '__root__'
     | '/'
@@ -88,8 +158,13 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/admin'
     | '/_authenticated/app'
+    | '/_authenticated/admin/arenden'
+    | '/_authenticated/admin/boende'
+    | '/_authenticated/admin/fastigheter'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
+    | '/_authenticated/admin/arenden/$id'
+    | '/_authenticated/admin/boende/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -142,6 +217,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/arenden': {
+      id: '/_authenticated/admin/arenden'
+      path: '/arenden'
+      fullPath: '/admin/arenden'
+      preLoaderRoute: typeof AuthenticatedAdminArendenRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/boende': {
+      id: '/_authenticated/admin/boende'
+      path: '/boende'
+      fullPath: '/admin/boende'
+      preLoaderRoute: typeof AuthenticatedAdminBoendeRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/fastigheter': {
+      id: '/_authenticated/admin/fastigheter'
+      path: '/fastigheter'
+      fullPath: '/admin/fastigheter'
+      preLoaderRoute: typeof AuthenticatedAdminFastigheterRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/app/': {
       id: '/_authenticated/app/'
       path: '/'
@@ -149,14 +245,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/admin/arenden/$id': {
+      id: '/_authenticated/admin/arenden/$id'
+      path: '/$id'
+      fullPath: '/admin/arenden/$id'
+      preLoaderRoute: typeof AuthenticatedAdminArendenIdRouteImport
+      parentRoute: typeof AuthenticatedAdminArendenRoute
+    }
+    '/_authenticated/admin/boende/$id': {
+      id: '/_authenticated/admin/boende/$id'
+      path: '/$id'
+      fullPath: '/admin/boende/$id'
+      preLoaderRoute: typeof AuthenticatedAdminBoendeIdRouteImport
+      parentRoute: typeof AuthenticatedAdminBoendeRoute
+    }
   }
 }
 
+interface AuthenticatedAdminArendenRouteChildren {
+  AuthenticatedAdminArendenIdRoute: typeof AuthenticatedAdminArendenIdRoute
+}
+
+const AuthenticatedAdminArendenRouteChildren: AuthenticatedAdminArendenRouteChildren =
+  {
+    AuthenticatedAdminArendenIdRoute: AuthenticatedAdminArendenIdRoute,
+  }
+
+const AuthenticatedAdminArendenRouteWithChildren =
+  AuthenticatedAdminArendenRoute._addFileChildren(
+    AuthenticatedAdminArendenRouteChildren,
+  )
+
+interface AuthenticatedAdminBoendeRouteChildren {
+  AuthenticatedAdminBoendeIdRoute: typeof AuthenticatedAdminBoendeIdRoute
+}
+
+const AuthenticatedAdminBoendeRouteChildren: AuthenticatedAdminBoendeRouteChildren =
+  {
+    AuthenticatedAdminBoendeIdRoute: AuthenticatedAdminBoendeIdRoute,
+  }
+
+const AuthenticatedAdminBoendeRouteWithChildren =
+  AuthenticatedAdminBoendeRoute._addFileChildren(
+    AuthenticatedAdminBoendeRouteChildren,
+  )
+
 interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminArendenRoute: typeof AuthenticatedAdminArendenRouteWithChildren
+  AuthenticatedAdminBoendeRoute: typeof AuthenticatedAdminBoendeRouteWithChildren
+  AuthenticatedAdminFastigheterRoute: typeof AuthenticatedAdminFastigheterRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminArendenRoute: AuthenticatedAdminArendenRouteWithChildren,
+  AuthenticatedAdminBoendeRoute: AuthenticatedAdminBoendeRouteWithChildren,
+  AuthenticatedAdminFastigheterRoute: AuthenticatedAdminFastigheterRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 
