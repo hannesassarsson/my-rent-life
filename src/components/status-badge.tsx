@@ -1,0 +1,89 @@
+import { cn } from "@/lib/utils";
+import { priorityLabels, requestStatusLabels, projectStatusLabels } from "@/lib/format";
+
+type Tone = "success" | "warning" | "danger" | "info" | "neutral";
+
+const toneClasses: Record<Tone, string> = {
+  success: "bg-success-soft text-success border-success/20",
+  warning: "bg-warning-soft text-warning-foreground border-warning/30",
+  danger: "bg-danger-soft text-danger border-danger/20",
+  info: "bg-info-soft text-info border-info/20",
+  neutral: "bg-muted text-muted-foreground border-border",
+};
+
+const dotClasses: Record<Tone, string> = {
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-danger",
+  info: "bg-info",
+  neutral: "bg-muted-foreground/50",
+};
+
+export function StatusPill({
+  tone,
+  children,
+  className,
+}: {
+  tone: Tone;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium whitespace-nowrap",
+        toneClasses[tone],
+        className,
+      )}
+    >
+      <span className={cn("size-1.5 rounded-full", dotClasses[tone])} />
+      {children}
+    </span>
+  );
+}
+
+const requestTone: Record<string, Tone> = {
+  new: "info",
+  received: "info",
+  assigned: "info",
+  booked: "warning",
+  in_progress: "warning",
+  resolved: "success",
+  closed: "neutral",
+};
+
+export function RequestStatusBadge({ status }: { status: string }) {
+  return (
+    <StatusPill tone={requestTone[status] ?? "neutral"}>
+      {requestStatusLabels[status] ?? status}
+    </StatusPill>
+  );
+}
+
+const priorityTone: Record<string, Tone> = {
+  low: "neutral",
+  normal: "info",
+  high: "warning",
+  urgent: "danger",
+};
+
+export function PriorityBadge({ priority }: { priority: string }) {
+  return (
+    <StatusPill tone={priorityTone[priority] ?? "neutral"}>
+      {priorityLabels[priority] ?? priority}
+    </StatusPill>
+  );
+}
+
+export function PaymentStatusBadge({ status }: { status: string }) {
+  return (
+    <StatusPill tone={status === "paid" ? "success" : "warning"}>
+      {status === "paid" ? "Betald" : "Obetald"}
+    </StatusPill>
+  );
+}
+
+export function ProjectStatusBadge({ status }: { status: string }) {
+  const tone: Tone = status === "done" ? "success" : status === "in_progress" ? "warning" : "info";
+  return <StatusPill tone={tone}>{projectStatusLabels[status] ?? status}</StatusPill>;
+}

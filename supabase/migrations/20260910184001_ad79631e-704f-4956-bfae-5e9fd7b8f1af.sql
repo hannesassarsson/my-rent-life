@@ -1,0 +1,14 @@
+revoke all on function public.has_role(uuid, public.app_role) from public, anon;
+revoke all on function public.current_org(uuid) from public, anon;
+revoke all on function public.is_org_member(uuid, uuid) from public, anon;
+revoke all on function public.is_org_staff(uuid, uuid) from public, anon;
+revoke all on function public.my_unit_ids(uuid) from public, anon;
+revoke all on function public.can_see_request(uuid, uuid) from public, anon;
+revoke all on function public.handle_new_user() from public, anon, authenticated;
+revoke all on function public.touch_updated_at() from public, anon, authenticated;
+grant execute on function public.has_role(uuid, public.app_role) to authenticated;
+grant execute on function public.current_org(uuid) to authenticated;
+grant execute on function public.is_org_member(uuid, uuid) to authenticated;
+grant execute on function public.is_org_staff(uuid, uuid) to authenticated;
+grant execute on function public.my_unit_ids(uuid) to authenticated;
+grant execute on function public.can_see_request(uuid, uuid) to authenticated;
