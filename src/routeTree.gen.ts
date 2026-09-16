@@ -17,7 +17,11 @@ import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/ap
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminArendenRouteImport } from './routes/_authenticated/admin.arenden'
 import { Route as AuthenticatedAdminBoendeRouteImport } from './routes/_authenticated/admin.boende'
+import { Route as AuthenticatedAdminEkonomiRouteImport } from './routes/_authenticated/admin.ekonomi'
+import { Route as AuthenticatedAdminEntreprenorerRouteImport } from './routes/_authenticated/admin.entreprenorer'
 import { Route as AuthenticatedAdminFastigheterRouteImport } from './routes/_authenticated/admin.fastigheter'
+import { Route as AuthenticatedAdminInstallningarRouteImport } from './routes/_authenticated/admin.installningar'
+import { Route as AuthenticatedAdminUnderhallRouteImport } from './routes/_authenticated/admin.underhall'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAdminArendenIdRouteImport } from './routes/_authenticated/admin.arenden.$id'
 import { Route as AuthenticatedAdminBoendeIdRouteImport } from './routes/_authenticated/admin.boende.$id'
@@ -63,10 +67,34 @@ const AuthenticatedAdminBoendeRoute =
     path: '/boende',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminEkonomiRoute =
+  AuthenticatedAdminEkonomiRouteImport.update({
+    id: '/ekonomi',
+    path: '/ekonomi',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminEntreprenorerRoute =
+  AuthenticatedAdminEntreprenorerRouteImport.update({
+    id: '/entreprenorer',
+    path: '/entreprenorer',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminFastigheterRoute =
   AuthenticatedAdminFastigheterRouteImport.update({
     id: '/fastigheter',
     path: '/fastigheter',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminInstallningarRoute =
+  AuthenticatedAdminInstallningarRouteImport.update({
+    id: '/installningar',
+    path: '/installningar',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminUnderhallRoute =
+  AuthenticatedAdminUnderhallRouteImport.update({
+    id: '/underhall',
+    path: '/underhall',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
@@ -94,7 +122,11 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/admin/arenden': typeof AuthenticatedAdminArendenRouteWithChildren
   '/admin/boende': typeof AuthenticatedAdminBoendeRouteWithChildren
+  '/admin/ekonomi': typeof AuthenticatedAdminEkonomiRoute
+  '/admin/entreprenorer': typeof AuthenticatedAdminEntreprenorerRoute
   '/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
+  '/admin/installningar': typeof AuthenticatedAdminInstallningarRoute
+  '/admin/underhall': typeof AuthenticatedAdminUnderhallRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/admin/arenden/$id': typeof AuthenticatedAdminArendenIdRoute
@@ -105,7 +137,11 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/admin/arenden': typeof AuthenticatedAdminArendenRouteWithChildren
   '/admin/boende': typeof AuthenticatedAdminBoendeRouteWithChildren
+  '/admin/ekonomi': typeof AuthenticatedAdminEkonomiRoute
+  '/admin/entreprenorer': typeof AuthenticatedAdminEntreprenorerRoute
   '/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
+  '/admin/installningar': typeof AuthenticatedAdminInstallningarRoute
+  '/admin/underhall': typeof AuthenticatedAdminUnderhallRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/admin/arenden/$id': typeof AuthenticatedAdminArendenIdRoute
@@ -120,7 +156,11 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/admin/arenden': typeof AuthenticatedAdminArendenRouteWithChildren
   '/_authenticated/admin/boende': typeof AuthenticatedAdminBoendeRouteWithChildren
+  '/_authenticated/admin/ekonomi': typeof AuthenticatedAdminEkonomiRoute
+  '/_authenticated/admin/entreprenorer': typeof AuthenticatedAdminEntreprenorerRoute
   '/_authenticated/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
+  '/_authenticated/admin/installningar': typeof AuthenticatedAdminInstallningarRoute
+  '/_authenticated/admin/underhall': typeof AuthenticatedAdminUnderhallRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/admin/arenden/$id': typeof AuthenticatedAdminArendenIdRoute
@@ -135,7 +175,11 @@ export interface FileRouteTypes {
     | '/app'
     | '/admin/arenden'
     | '/admin/boende'
+    | '/admin/ekonomi'
+    | '/admin/entreprenorer'
     | '/admin/fastigheter'
+    | '/admin/installningar'
+    | '/admin/underhall'
     | '/admin/'
     | '/app/'
     | '/admin/arenden/$id'
@@ -146,7 +190,11 @@ export interface FileRouteTypes {
     | '/auth'
     | '/admin/arenden'
     | '/admin/boende'
+    | '/admin/ekonomi'
+    | '/admin/entreprenorer'
     | '/admin/fastigheter'
+    | '/admin/installningar'
+    | '/admin/underhall'
     | '/admin'
     | '/app'
     | '/admin/arenden/$id'
@@ -160,7 +208,11 @@ export interface FileRouteTypes {
     | '/_authenticated/app'
     | '/_authenticated/admin/arenden'
     | '/_authenticated/admin/boende'
+    | '/_authenticated/admin/ekonomi'
+    | '/_authenticated/admin/entreprenorer'
     | '/_authenticated/admin/fastigheter'
+    | '/_authenticated/admin/installningar'
+    | '/_authenticated/admin/underhall'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
     | '/_authenticated/admin/arenden/$id'
@@ -231,11 +283,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminBoendeRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/ekonomi': {
+      id: '/_authenticated/admin/ekonomi'
+      path: '/ekonomi'
+      fullPath: '/admin/ekonomi'
+      preLoaderRoute: typeof AuthenticatedAdminEkonomiRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/entreprenorer': {
+      id: '/_authenticated/admin/entreprenorer'
+      path: '/entreprenorer'
+      fullPath: '/admin/entreprenorer'
+      preLoaderRoute: typeof AuthenticatedAdminEntreprenorerRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/fastigheter': {
       id: '/_authenticated/admin/fastigheter'
       path: '/fastigheter'
       fullPath: '/admin/fastigheter'
       preLoaderRoute: typeof AuthenticatedAdminFastigheterRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/installningar': {
+      id: '/_authenticated/admin/installningar'
+      path: '/installningar'
+      fullPath: '/admin/installningar'
+      preLoaderRoute: typeof AuthenticatedAdminInstallningarRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/underhall': {
+      id: '/_authenticated/admin/underhall'
+      path: '/underhall'
+      fullPath: '/admin/underhall'
+      preLoaderRoute: typeof AuthenticatedAdminUnderhallRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/app/': {
@@ -293,14 +373,22 @@ const AuthenticatedAdminBoendeRouteWithChildren =
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminArendenRoute: typeof AuthenticatedAdminArendenRouteWithChildren
   AuthenticatedAdminBoendeRoute: typeof AuthenticatedAdminBoendeRouteWithChildren
+  AuthenticatedAdminEkonomiRoute: typeof AuthenticatedAdminEkonomiRoute
+  AuthenticatedAdminEntreprenorerRoute: typeof AuthenticatedAdminEntreprenorerRoute
   AuthenticatedAdminFastigheterRoute: typeof AuthenticatedAdminFastigheterRoute
+  AuthenticatedAdminInstallningarRoute: typeof AuthenticatedAdminInstallningarRoute
+  AuthenticatedAdminUnderhallRoute: typeof AuthenticatedAdminUnderhallRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminArendenRoute: AuthenticatedAdminArendenRouteWithChildren,
   AuthenticatedAdminBoendeRoute: AuthenticatedAdminBoendeRouteWithChildren,
+  AuthenticatedAdminEkonomiRoute: AuthenticatedAdminEkonomiRoute,
+  AuthenticatedAdminEntreprenorerRoute: AuthenticatedAdminEntreprenorerRoute,
   AuthenticatedAdminFastigheterRoute: AuthenticatedAdminFastigheterRoute,
+  AuthenticatedAdminInstallningarRoute: AuthenticatedAdminInstallningarRoute,
+  AuthenticatedAdminUnderhallRoute: AuthenticatedAdminUnderhallRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 
