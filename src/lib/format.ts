@@ -91,3 +91,22 @@ export const resourceKindLabels: Record<string, string> = {
 export function toDateInput(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
+
+export const docTypeLabels: Record<string, string> = {
+  bylaws: "Stadgar",
+  statutes: "Stadgar",
+  protocol: "Protokoll",
+  minutes: "Protokoll",
+  annual_report: "Årsredovisning",
+  economy: "Ekonomi",
+  contract: "Avtal",
+  maintenance: "Underhåll",
+  insurance: "Försäkring",
+  rules: "Ordningsregler",
+  info: "Information",
+  other: "Övrigt",
+};
+
+export function docTypeLabel(type: string) {
+  return docTypeLabels[type] ?? type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ");
+}

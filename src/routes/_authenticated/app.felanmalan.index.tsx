@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/_authenticated/app/felanmalan")({
+export const Route = createFileRoute("/_authenticated/app/felanmalan/")({
   head: () => ({
     meta: [
       { title: "Felanmälan – Boendeplattformen" },

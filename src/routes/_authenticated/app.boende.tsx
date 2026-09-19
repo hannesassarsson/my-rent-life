@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getMyHome } from "@/lib/app.functions";
 import { DataRow, EmptyState, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
 import { StatusPill } from "@/components/status-badge";
-import { dateLong, kr } from "@/lib/format";
+import { dateLong, docTypeLabel, kr } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/app/boende")({
   head: () => ({

@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { getDocuments } from "@/lib/app.functions";
 import { EmptyState, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
-import { dateLong } from "@/lib/format";
+import { dateLong, docTypeLabel } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_authenticated/app/dokument")({
@@ -55,7 +55,7 @@ function DocumentsPage() {
       ) : (
         <div className="space-y-5">
           {Object.entries(groups).map(([type, docs]) => (
-            <Panel key={type} title={type} description={`${docs.length} dokument`}>
+            <Panel key={type} title={docTypeLabel(type)} description={`${docs.length} dokument`}>
               <ul className="space-y-3">
                 {docs.map((d) => (
                   <li

@@ -10,7 +10,7 @@ import { StatusPill } from "@/components/status-badge";
 import { dateLong } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 
-export const Route = createFileRoute("/_authenticated/admin/boende")({
+export const Route = createFileRoute("/_authenticated/admin/boende/")({
   component: AdminResidents,
 });
 
