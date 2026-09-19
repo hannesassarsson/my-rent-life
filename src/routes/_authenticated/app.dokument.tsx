@@ -55,7 +55,7 @@ function DocumentsPage() {
       ) : (
         <div className="space-y-5">
           {Object.entries(groups).map(([type, docs]) => (
-            <Panel key={type} title={type} description={`${docs.length} dokument`}>
+            <Panel key={type} title={docTypeLabel(type)} description={`${docs.length} dokument`}>
               <ul className="space-y-3">
                 {docs.map((d) => (
                   <li
