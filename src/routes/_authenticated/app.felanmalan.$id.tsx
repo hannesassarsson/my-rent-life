@@ -36,7 +36,7 @@ function RequestPage() {
 
   const mutation = useMutation({
     mutationFn: (action?: "still_broken" | "resolved") =>
-      comment({ data: { requestId: id, body, action } }),
+      comment({ data: { requestId: id, body, ...(action ? { action } : {}) } }),
     onSuccess: () => {
       setBody("");
       toast.success("Skickat till förvaltningen");

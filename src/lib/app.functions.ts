@@ -596,7 +596,10 @@ export const updateRequestAdmin = createServerFn({ method: "POST" })
       patch["resolved_at"] = new Date().toISOString();
 
     if (Object.keys(patch).length > 0) {
-      const { error } = await supabase.from("maintenance_requests").update(patch).eq("id", data.id);
+      const { error } = await supabase
+        .from("maintenance_requests")
+        .update(patch as never)
+        .eq("id", data.id);
       if (error) throw new Error(error.message);
     }
 
