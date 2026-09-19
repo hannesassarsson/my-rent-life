@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { getDocuments } from "@/lib/app.functions";
 import { EmptyState, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
-import { dateLong } from "@/lib/format";
+import { dateLong, docTypeLabel } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_authenticated/app/dokument")({
