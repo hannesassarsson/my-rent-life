@@ -11,7 +11,7 @@ import { dateTime, requestStatusLabels } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-export const Route = createFileRoute("/_authenticated/admin/arenden")({
+export const Route = createFileRoute("/_authenticated/admin/arenden/")({
   component: AdminRequests,
 });
 
