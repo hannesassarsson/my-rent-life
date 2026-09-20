@@ -112,7 +112,7 @@ function MyHome() {
                   <div>
                     <p className="text-sm font-medium">{d.title}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {d.doc_type} · {d.file_kind?.toUpperCase()} · {d.file_size ?? ""}
+                      {docTypeLabel(d.doc_type)} · {d.file_kind?.toUpperCase()} · {d.file_size ?? ""}
                     </p>
                   </div>
                   <span className="text-xs text-muted-foreground">{dateLong(d.created_at)}</span>
