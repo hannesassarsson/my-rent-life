@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getMyEconomy } from "@/lib/app.functions";
 import { EmptyState, Kpi, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
 import { PaymentStatusBadge } from "@/components/status-badge";
+import { PayDialog } from "@/components/pay-dialog";
 import { dateLong, kr, monthName } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/app/ekonomi")({
