@@ -292,6 +292,60 @@ export type Database = {
           },
         ]
       }
+      inspections: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          inspector_name: string | null
+          kind: string
+          note: string | null
+          organization_id: string
+          scheduled_at: string | null
+          status: string
+          unit_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          inspector_name?: string | null
+          kind?: string
+          note?: string | null
+          organization_id: string
+          scheduled_at?: string | null
+          status?: string
+          unit_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          inspector_name?: string | null
+          kind?: string
+          note?: string | null
+          organization_id?: string
+          scheduled_at?: string | null
+          status?: string
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspections_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspections_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       maintenance_comments: {
         Row: {
           author_name: string
