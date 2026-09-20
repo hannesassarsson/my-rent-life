@@ -8,6 +8,13 @@
       "when": 1789820964235,
       "tag": "0000_fix_duplicate_ticket_numbers",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789903717182,
+      "tag": "0001_create_inspections",
+      "breakpoints": true
     }
   ]
 }
