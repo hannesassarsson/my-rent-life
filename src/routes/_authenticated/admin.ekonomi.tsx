@@ -118,6 +118,58 @@ function AdminEconomy() {
               </ul>
             )}
           </Panel>
+
+          <Panel
+            title="Betalsätt för boende"
+            description="Så kan boende betala avgift eller hyra. Aktiveras i nästa steg."
+          >
+            <ul className="grid gap-3 sm:grid-cols-3">
+              {[
+                { label: "Kort (Stripe)", hint: "Kortbetalning med automatisk avprickning" },
+                { label: "Swish", hint: "Swish-betalning direkt i mobilen" },
+                { label: "Banköverföring", hint: "Bankgiro med OCR-nummer" },
+              ].map((m) => (
+                <li key={m.label} className="rounded-xl border border-border p-4">
+                  <p className="text-sm font-medium">{m.label}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{m.hint}</p>
+                  <span className="mt-3 inline-flex rounded-full bg-surface-muted px-2.5 py-1 text-xs text-muted-foreground">
+                    Ej aktiverad
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+
+          <Panel
+            title="Bokföring – Fortnox"
+            description="Koppla plattformen till Fortnox så att betalningar och avgifter bokförs automatiskt."
+          >
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border p-4">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Fortnox</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Status: inte ansluten. När kopplingen är klar synkas kundfakturor, inbetalningar
+                  och verifikat automatiskt.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  toast.info("Fortnox-kopplingen är inte aktiverad ännu", {
+                    description: "Skalet är förberett – vi kopplar in Fortnox i nästa steg.",
+                  })
+                }
+              >
+                Anslut Fortnox
+              </Button>
+            </div>
+            <ul className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+              <li>· Automatisk kundfakturering av avgifter och hyror</li>
+              <li>· Avprickning av inbetalningar mot fakturor</li>
+              <li>· Export av verifikat till huvudbok</li>
+              <li>· Avstämning av bankgiro, Swish och kortbetalningar</li>
+            </ul>
+          </Panel>
         </div>
       )}
     </div>

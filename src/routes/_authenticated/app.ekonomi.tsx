@@ -56,6 +56,43 @@ function EconomyPage() {
         <Kpi label="Betalt i år" value={kr(paidThisYear)} />
       </div>
 
+      {unpaid.length > 0 && (
+        <Panel
+          title="Att betala"
+          description="Välj betalsätt – kort, Swish eller banköverföring."
+        >
+          <ul className="space-y-3">
+            {unpaid.map((p) => (
+              <li
+                key={p.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-4"
+              >
+                <div>
+                  <p className="text-sm font-medium">{monthName(p.period)}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {p.kind === "rent" ? "Hyra" : "Avgift"} · förfaller {dateLong(p.due_date)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold tnum">{kr(p.amount)}</span>
+                  <PaymentStatusBadge status={p.status} />
+                  <PayDialog
+                    payment={{
+                      id: p.id,
+                      amount: p.amount,
+                      period: p.period,
+                      due_date: p.due_date,
+                    }}
+                    kindLabel={p.kind === "rent" ? "Hyra" : "Avgift"}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      <div className="mt-5">
       <Panel title="Betalningshistorik">
         {payments.length === 0 ? (
           <EmptyState title="Inga betalningar registrerade" />
@@ -82,6 +119,7 @@ function EconomyPage() {
           </ul>
         )}
       </Panel>
+      </div>
     </div>
   );
 }
