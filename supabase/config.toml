@@ -1,1 +1,4 @@
 project_id = "ixwxfbkvgyprwsqpqwpa"
+[auth]
+# Öppen registrering är stängd; konton skapas av administratör.
+enable_signup = false
