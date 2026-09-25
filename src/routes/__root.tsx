@@ -127,6 +127,12 @@ function RootComponent() {
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {
+      // Återställningslänken kan landa på startsidan om adressen inte är
+      // godkänd i Supabase; skicka då vidare till sidan för nytt lösenord.
+      if (event === "PASSWORD_RECOVERY" && window.location.pathname !== "/auth/aterstall") {
+        void router.navigate({ to: "/auth/aterstall" });
+        return;
+      }
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();

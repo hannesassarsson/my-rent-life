@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/app-shell";
-import { startDemo, type DemoKind } from "@/lib/public.functions";
+import { requestPasswordReset, startDemo, type DemoKind } from "@/lib/public.functions";
 
 const DEMO_ROLES: { kind: DemoKind; label: string; description: string; to: string }[] = [
   { kind: "resident", label: "Boende", description: "Avgift, felanmälan, bokningar", to: "/app" },
@@ -53,6 +53,21 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const startDemoFn = useServerFn(startDemo);
+  const resetFn = useServerFn(requestPasswordReset);
+  const [mode, setMode] = useState<"login" | "reset" | "sent">("login");
+
+  async function sendReset(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await resetFn({ data: { email } });
+      setMode("sent");
+    } catch {
+      toast.error("Ange en giltig e-postadress");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -98,39 +113,93 @@ function AuthPage() {
           <Link to="/">
             <Logo />
           </Link>
-          <h1 className="mt-10 text-2xl font-semibold tracking-tight">Logga in</h1>
+          <h1 className="mt-10 text-2xl font-semibold tracking-tight">
+            {mode === "login" ? "Logga in" : "Glömt lösenord"}
+          </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Allt som rör ditt boende – på ett ställe.
+            {mode === "login"
+              ? "Allt som rör ditt boende – på ett ställe."
+              : "Vi skickar en länk där du väljer ett nytt lösenord."}
           </p>
 
-          <form onSubmit={submit} className="mt-8 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">E-post</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+          {mode === "sent" ? (
+            <div className="mt-8 rounded-xl border border-border p-4 text-sm">
+              <p className="font-medium">Kolla din e-post</p>
+              <p className="mt-1 text-muted-foreground">
+                Om {email} har ett konto har vi skickat en länk för att välja nytt lösenord. Länken
+                gäller i en timme.
+              </p>
+              <button
+                type="button"
+                className="mt-3 text-sm text-primary underline-offset-4 hover:underline"
+                onClick={() => setMode("login")}
+              >
+                Tillbaka till inloggningen
+              </button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Lösenord</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={busy}>
-              Logga in
-            </Button>
-          </form>
+          ) : mode === "reset" ? (
+            <form onSubmit={sendReset} className="mt-8 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">E-post</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={busy}>
+                Skicka länk
+              </Button>
+              <button
+                type="button"
+                className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                onClick={() => setMode("login")}
+              >
+                Tillbaka till inloggningen
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={submit} className="mt-8 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">E-post</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Lösenord</Label>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+                    onClick={() => setMode("reset")}
+                  >
+                    Glömt lösenord?
+                  </button>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={busy}>
+                Logga in
+              </Button>
+            </form>
+          )}
 
           <p className="mt-6 text-sm text-muted-foreground">
             Konton skapas av din förening eller hyresvärd. Kontakta förvaltningen om du saknar

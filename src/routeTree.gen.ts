@@ -16,6 +16,7 @@ import { Route as BokaDemoRouteImport } from './routes/boka-demo'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedEntreprenorRouteImport } from './routes/_authenticated/entreprenor'
+import { Route as AuthAterstallRouteImport } from './routes/auth.aterstall'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminBokningarRouteImport } from './routes/_authenticated/admin.bokningar'
 import { Route as AuthenticatedAdminDokumentRouteImport } from './routes/_authenticated/admin.dokument'
@@ -79,6 +80,11 @@ const AuthenticatedEntreprenorRoute =
     path: '/entreprenor',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthAterstallRoute = AuthAterstallRouteImport.update({
+  id: '/aterstall',
+  path: '/aterstall',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -238,11 +244,12 @@ const AuthenticatedAppFelanmalanIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/boka-demo': typeof BokaDemoRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/entreprenor': typeof AuthenticatedEntreprenorRouteWithChildren
+  '/auth/aterstall': typeof AuthAterstallRoute
   '/admin/bokningar': typeof AuthenticatedAdminBokningarRoute
   '/admin/dokument': typeof AuthenticatedAdminDokumentRoute
   '/admin/ekonomi': typeof AuthenticatedAdminEkonomiRoute
@@ -273,8 +280,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/boka-demo': typeof BokaDemoRoute
+  '/auth/aterstall': typeof AuthAterstallRoute
   '/admin/bokningar': typeof AuthenticatedAdminBokningarRoute
   '/admin/dokument': typeof AuthenticatedAdminDokumentRoute
   '/admin/ekonomi': typeof AuthenticatedAdminEkonomiRoute
@@ -307,11 +315,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/boka-demo': typeof BokaDemoRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/entreprenor': typeof AuthenticatedEntreprenorRouteWithChildren
+  '/auth/aterstall': typeof AuthAterstallRoute
   '/_authenticated/admin/bokningar': typeof AuthenticatedAdminBokningarRoute
   '/_authenticated/admin/dokument': typeof AuthenticatedAdminDokumentRoute
   '/_authenticated/admin/ekonomi': typeof AuthenticatedAdminEkonomiRoute
@@ -349,6 +358,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/app'
     | '/entreprenor'
+    | '/auth/aterstall'
     | '/admin/bokningar'
     | '/admin/dokument'
     | '/admin/ekonomi'
@@ -381,6 +391,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/boka-demo'
+    | '/auth/aterstall'
     | '/admin/bokningar'
     | '/admin/dokument'
     | '/admin/ekonomi'
@@ -417,6 +428,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/app'
     | '/_authenticated/entreprenor'
+    | '/auth/aterstall'
     | '/_authenticated/admin/bokningar'
     | '/_authenticated/admin/dokument'
     | '/_authenticated/admin/ekonomi'
@@ -449,7 +461,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
-  AuthRoute: typeof AuthRoute
+  AuthRoute: typeof AuthRouteWithChildren
   BokaDemoRoute: typeof BokaDemoRoute
 }
 
@@ -503,6 +515,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/entreprenor'
       preLoaderRoute: typeof AuthenticatedEntreprenorRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/auth/aterstall': {
+      id: '/auth/aterstall'
+      path: '/aterstall'
+      fullPath: '/auth/aterstall'
+      preLoaderRoute: typeof AuthAterstallRouteImport
+      parentRoute: typeof AuthRoute
     }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
@@ -795,10 +814,20 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface AuthRouteChildren {
+  AuthAterstallRoute: typeof AuthAterstallRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthAterstallRoute: AuthAterstallRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  AuthRoute: AuthRoute,
+  AuthRoute: AuthRouteWithChildren,
   BokaDemoRoute: BokaDemoRoute,
 }
 export const routeTree = rootRouteImport

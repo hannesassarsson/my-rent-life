@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
@@ -81,5 +82,21 @@ export const requestDemo = createServerFn({ method: "POST" })
         message: data.message || null,
       });
     if (error) throw new Error("Förfrågan kunde inte skickas. Försök igen.");
+    return { ok: true };
+  });
+
+/**
+ * Skickar en länk för att välja nytt lösenord. Svarar alltid likadant så att
+ * man inte kan ta reda på vilka adresser som har konto. Demokonton (på
+ * domänen boendeplattformen.se, som inte är vår) får inga utskick.
+ */
+export const requestPasswordReset = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ email: z.string().trim().toLowerCase().email().max(200) }))
+  .handler(async ({ data }) => {
+    if (data.email.endsWith("@boendeplattformen.se")) return { ok: true };
+    const origin = new URL(getRequest().url).origin;
+    await anonClient().auth.resetPasswordForEmail(data.email, {
+      redirectTo: `${origin}/auth/aterstall`,
+    });
     return { ok: true };
   });
