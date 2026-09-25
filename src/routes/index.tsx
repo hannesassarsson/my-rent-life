@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/app-shell";
 import { StatusPill } from "@/components/status-badge";
+import { getPublicStats, type PublicStats } from "@/lib/public.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -33,8 +34,24 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
+  loader: () => getPublicStats().catch((): PublicStats | null => null),
+  staleTime: 5 * 60_000,
   component: Landing,
 });
+
+const nf = (digits: number) =>
+  new Intl.NumberFormat("sv-SE", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+
+/** Nyckeltalen visas bara om de gick att räkna fram. */
+function statRows(stats: PublicStats | null): [string, string][] {
+  const rows: [string, string][] = [];
+  if (stats?.units) rows.push([nf(0).format(stats.units), "lägenheter i demo"]);
+  if (stats?.avgResolutionDays != null)
+    rows.push([`${nf(1).format(stats.avgResolutionDays)} dagar`, "snitt till löst ärende"]);
+  if (stats?.paidShare != null)
+    rows.push([`${nf(1).format(stats.paidShare)} %`, "betalda avgifter senaste månaden"]);
+  return rows;
+}
 
 const audiences = [
   {
@@ -147,6 +164,7 @@ function DashboardMockup() {
 }
 
 function Landing() {
+  const stats = Route.useLoaderData();
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -177,11 +195,7 @@ function Landing() {
               </Button>
             </div>
             <dl className="mt-12 grid max-w-lg grid-cols-3 gap-6">
-              {[
-                ["184", "lägenheter i demo"],
-                ["2,4 dagar", "snitt till löst ärende"],
-                ["97,8 %", "betalda avgifter"],
-              ].map(([value, label]) => (
+              {statRows(stats).map(([value, label]) => (
                 <div key={label}>
                   <dt className="text-xl font-semibold tnum">{value}</dt>
                   <dd className="mt-1 text-xs text-muted-foreground">{label}</dd>

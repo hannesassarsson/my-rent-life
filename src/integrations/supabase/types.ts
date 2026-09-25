@@ -1195,6 +1195,7 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      public_demo_stats: { Args: never; Returns: Json };
       notify_request_reporter: {
         Args: { _request_id: string; _title: string; _body: string };
         Returns: undefined;

@@ -13,6 +13,13 @@ const STAFF_ROLES = ["super_admin", "org_admin", "property_manager", "board_memb
 /* ----------------------------- VALIDERING ----------------------------- */
 
 const id = z.string().uuid();
+
+/** "07:30:00" → 450. Stängning vid midnatt ("00:00") räknas som 24:00. */
+function minutesOf(time: string, closing = false): number {
+  const [h = 0, m = 0] = time.split(":").map(Number);
+  const minutes = h * 60 + m;
+  return closing && minutes === 0 ? 24 * 60 : minutes;
+}
 const shortText = z.string().trim().max(200);
 const longText = z.string().max(10_000);
 const requestStatus = z.enum([
@@ -662,7 +669,11 @@ export const getAdminOverview = createServerFn({ method: "GET" })
           .select("id, title")
           .eq("organization_id", orgId)
           .eq("is_published", false),
-        supabase.from("resources").select("id, name, slot_minutes, open_from, open_to"),
+        supabase
+          .from("resources")
+          .select("id, name, slot_minutes, open_from, open_to")
+          .eq("organization_id", orgId)
+          .eq("is_active", true),
         supabase.from("maintenance_projects").select("*").eq("organization_id", orgId),
         supabase
           .from("meetings")
@@ -691,13 +702,18 @@ export const getAdminOverview = createServerFn({ method: "GET" })
           ) / resolved.length
         : 0;
 
-    const slotsPerDay = 8;
+    // Beläggning senaste 30 dagarna: bokade pass delat med antalet pass som
+    // gick att boka enligt resursens öppettider och passlängd.
+    const now = Date.now();
+    const pastBookings = (bookings.data ?? []).filter((b) => new Date(b.starts_at).getTime() < now);
     const occupancy = (resources.data ?? []).map((res) => {
-      const count = (bookings.data ?? []).filter((b) => b.resource_id === res.id).length;
+      const count = pastBookings.filter((b) => b.resource_id === res.id).length;
+      const openMinutes = minutesOf(res.open_to, true) - minutesOf(res.open_from);
+      const slotsPerDay = Math.max(1, Math.floor(openMinutes / Math.max(1, res.slot_minutes)));
       return {
         id: res.id,
         name: res.name,
-        rate: Math.min(100, Math.round((count / (slotsPerDay * 30)) * 100 * 12)),
+        rate: Math.min(100, Math.round((count / (slotsPerDay * 30)) * 100)),
       };
     });
 

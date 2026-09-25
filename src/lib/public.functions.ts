@@ -100,3 +100,26 @@ export const requestPasswordReset = createServerFn({ method: "POST" })
     });
     return { ok: true };
   });
+
+export type PublicStats = {
+  units: number | null;
+  avgResolutionDays: number | null;
+  paidShare: number | null;
+};
+
+/** Nyckeltal från demoföreningen till startsidan. */
+export const getPublicStats = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PublicStats> => {
+    const { data, error } = await anonClient().rpc("public_demo_stats");
+    const s = (error ? null : data) as {
+      units?: number;
+      avg_resolution_days?: number | null;
+      paid_share?: number | null;
+    } | null;
+    return {
+      units: s?.units ?? null,
+      avgResolutionDays: s?.avg_resolution_days ?? null,
+      paidShare: s?.paid_share ?? null,
+    };
+  },
+);
