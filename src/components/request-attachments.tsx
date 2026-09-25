@@ -5,36 +5,11 @@ import { ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { addRequestAttachments } from "@/lib/app.functions";
-import { IMAGE_TYPES, checkFile, signedUrls, uploadFile } from "@/lib/files";
+import { IMAGE_TYPES, attachImages, signedUrls } from "@/lib/files";
 import { Panel } from "@/components/ui-kit";
 import { Button } from "@/components/ui/button";
 
 type Attachment = { id: string; storage_path: string; file_name: string };
-
-/** Laddar upp bilder till ett ärende och registrerar dem. */
-export async function attachImages(
-  add: (args: {
-    data: {
-      requestId: string;
-      files: { storagePath: string; fileName: string; contentType: string; sizeBytes: number }[];
-    };
-  }) => Promise<unknown>,
-  request: { id: string; organization_id: string },
-  files: File[],
-) {
-  files.forEach((f) => checkFile(f, IMAGE_TYPES));
-  const uploaded = [];
-  for (const file of files) {
-    const storagePath = await uploadFile(`${request.organization_id}/requests/${request.id}`, file);
-    uploaded.push({
-      storagePath,
-      fileName: file.name.slice(0, 200),
-      contentType: file.type,
-      sizeBytes: file.size,
-    });
-  }
-  await add({ data: { requestId: request.id, files: uploaded } });
-}
 
 export function RequestAttachments({
   request,

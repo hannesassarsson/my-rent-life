@@ -5,8 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { addRequestAttachments, createRequest, getMyRequests } from "@/lib/app.functions";
-import { attachImages } from "@/components/request-attachments";
-import { IMAGE_TYPES, checkFile } from "@/lib/files";
+import { IMAGE_TYPES, attachImages, checkFile } from "@/lib/files";
 import { EmptyState, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
 import { PriorityBadge, RequestStatusBadge } from "@/components/status-badge";
 import { categoryLabels, dateTime } from "@/lib/format";

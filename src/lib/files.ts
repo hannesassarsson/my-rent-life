@@ -75,3 +75,28 @@ export function fileKindOf(file: File) {
   if (file.type.includes("spreadsheetml")) return "xlsx";
   return "fil";
 }
+
+/** Laddar upp bilder till ett ärende och registrerar dem. */
+export async function attachImages(
+  add: (args: {
+    data: {
+      requestId: string;
+      files: { storagePath: string; fileName: string; contentType: string; sizeBytes: number }[];
+    };
+  }) => Promise<unknown>,
+  request: { id: string; organization_id: string },
+  files: File[],
+) {
+  files.forEach((f) => checkFile(f, IMAGE_TYPES));
+  const uploaded = [];
+  for (const file of files) {
+    const storagePath = await uploadFile(`${request.organization_id}/requests/${request.id}`, file);
+    uploaded.push({
+      storagePath,
+      fileName: file.name.slice(0, 200),
+      contentType: file.type,
+      sizeBytes: file.size,
+    });
+  }
+  await add({ data: { requestId: request.id, files: uploaded } });
+}
