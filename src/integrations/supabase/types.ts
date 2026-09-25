@@ -942,6 +942,8 @@ export type Database = {
       };
       organizations: {
         Row: {
+          org_number: string | null;
+          bankgiro: string | null;
           created_at: string;
           id: string;
           name: string;
@@ -949,6 +951,8 @@ export type Database = {
           slug: string;
         };
         Insert: {
+          org_number?: string | null;
+          bankgiro?: string | null;
           created_at?: string;
           id?: string;
           name: string;
@@ -956,6 +960,8 @@ export type Database = {
           slug: string;
         };
         Update: {
+          org_number?: string | null;
+          bankgiro?: string | null;
           created_at?: string;
           id?: string;
           name?: string;
@@ -966,6 +972,7 @@ export type Database = {
       };
       payments: {
         Row: {
+          ocr: string | null;
           reminded_at: string | null;
           paid_via: string | null;
           amount: number;
@@ -980,6 +987,7 @@ export type Database = {
           unit_id: string;
         };
         Insert: {
+          ocr?: string | null;
           reminded_at?: string | null;
           paid_via?: string | null;
           amount: number;
@@ -994,6 +1002,7 @@ export type Database = {
           unit_id: string;
         };
         Update: {
+          ocr?: string | null;
           reminded_at?: string | null;
           paid_via?: string | null;
           amount?: number;
@@ -1448,6 +1457,7 @@ export type Database = {
     };
     Functions: {
       public_demo_stats: { Args: never; Returns: Json };
+      ocr_check_digit: { Args: { _base: string }; Returns: number };
       unlock_door: { Args: { _door_id: string; _method?: string }; Returns: Json };
       apply_billing: {
         Args: {

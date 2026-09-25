@@ -86,7 +86,9 @@ function EconomyPage() {
                       amount: p.amount,
                       period: p.period,
                       due_date: p.due_date,
+                      ocr: p.ocr,
                     }}
+                    bankgiro={data.me.organization?.bankgiro ?? null}
                     kindLabel={p.kind === "rent" ? "Hyra" : "Avgift"}
                   />
                 </div>

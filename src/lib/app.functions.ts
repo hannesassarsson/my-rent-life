@@ -56,7 +56,7 @@ export async function loadMe(supabase: Db, userId: string) {
     supabase
       .from("profiles")
       .select(
-        "id, full_name, email, phone, organization_id, organizations(id, name, org_type, subscriptions(plan, status, trial_ends_at, past_due_since, is_demo, invoice_billing, addons))",
+        "id, full_name, email, phone, organization_id, organizations(id, name, org_type, bankgiro, subscriptions(plan, status, trial_ends_at, past_due_since, is_demo, invoice_billing, addons))",
       )
       .eq("id", userId)
       .maybeSingle(),
@@ -71,7 +71,9 @@ export async function loadMe(supabase: Db, userId: string) {
       .maybeSingle(),
   ]);
   const orgRow = profileRow?.organizations ?? null;
-  const org = orgRow ? { id: orgRow.id, name: orgRow.name, org_type: orgRow.org_type } : null;
+  const org = orgRow
+    ? { id: orgRow.id, name: orgRow.name, org_type: orgRow.org_type, bankgiro: orgRow.bankgiro }
+    : null;
   const profile = profileRow
     ? {
         id: profileRow.id,

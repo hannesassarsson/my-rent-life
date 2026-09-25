@@ -27,6 +27,7 @@ import { Route as AuthenticatedAdminEkonomiRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminEntreprenorerRouteImport } from './routes/_authenticated/admin.entreprenorer'
 import { Route as AuthenticatedAdminFastigheterRouteImport } from './routes/_authenticated/admin.fastigheter'
 import { Route as AuthenticatedAdminInstallningarRouteImport } from './routes/_authenticated/admin.installningar'
+import { Route as AuthenticatedAdminIntegrationerRouteImport } from './routes/_authenticated/admin.integrationer'
 import { Route as AuthenticatedAdminKommunikationRouteImport } from './routes/_authenticated/admin.kommunikation'
 import { Route as AuthenticatedAdminMeddelandenRouteImport } from './routes/_authenticated/admin.meddelanden'
 import { Route as AuthenticatedAdminMotenRouteImport } from './routes/_authenticated/admin.moten'
@@ -148,6 +149,12 @@ const AuthenticatedAdminInstallningarRoute =
   AuthenticatedAdminInstallningarRouteImport.update({
     id: '/installningar',
     path: '/installningar',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminIntegrationerRoute =
+  AuthenticatedAdminIntegrationerRouteImport.update({
+    id: '/integrationer',
+    path: '/integrationer',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminKommunikationRoute =
@@ -304,6 +311,7 @@ export interface FileRoutesByFullPath {
   '/admin/entreprenorer': typeof AuthenticatedAdminEntreprenorerRoute
   '/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
   '/admin/installningar': typeof AuthenticatedAdminInstallningarRoute
+  '/admin/integrationer': typeof AuthenticatedAdminIntegrationerRoute
   '/admin/kommunikation': typeof AuthenticatedAdminKommunikationRoute
   '/admin/meddelanden': typeof AuthenticatedAdminMeddelandenRoute
   '/admin/moten': typeof AuthenticatedAdminMotenRoute
@@ -344,6 +352,7 @@ export interface FileRoutesByTo {
   '/admin/entreprenorer': typeof AuthenticatedAdminEntreprenorerRoute
   '/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
   '/admin/installningar': typeof AuthenticatedAdminInstallningarRoute
+  '/admin/integrationer': typeof AuthenticatedAdminIntegrationerRoute
   '/admin/kommunikation': typeof AuthenticatedAdminKommunikationRoute
   '/admin/meddelanden': typeof AuthenticatedAdminMeddelandenRoute
   '/admin/moten': typeof AuthenticatedAdminMotenRoute
@@ -389,6 +398,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/entreprenorer': typeof AuthenticatedAdminEntreprenorerRoute
   '/_authenticated/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
   '/_authenticated/admin/installningar': typeof AuthenticatedAdminInstallningarRoute
+  '/_authenticated/admin/integrationer': typeof AuthenticatedAdminIntegrationerRoute
   '/_authenticated/admin/kommunikation': typeof AuthenticatedAdminKommunikationRoute
   '/_authenticated/admin/meddelanden': typeof AuthenticatedAdminMeddelandenRoute
   '/_authenticated/admin/moten': typeof AuthenticatedAdminMotenRoute
@@ -434,6 +444,7 @@ export interface FileRouteTypes {
     | '/admin/entreprenorer'
     | '/admin/fastigheter'
     | '/admin/installningar'
+    | '/admin/integrationer'
     | '/admin/kommunikation'
     | '/admin/meddelanden'
     | '/admin/moten'
@@ -474,6 +485,7 @@ export interface FileRouteTypes {
     | '/admin/entreprenorer'
     | '/admin/fastigheter'
     | '/admin/installningar'
+    | '/admin/integrationer'
     | '/admin/kommunikation'
     | '/admin/meddelanden'
     | '/admin/moten'
@@ -518,6 +530,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/entreprenorer'
     | '/_authenticated/admin/fastigheter'
     | '/_authenticated/admin/installningar'
+    | '/_authenticated/admin/integrationer'
     | '/_authenticated/admin/kommunikation'
     | '/_authenticated/admin/meddelanden'
     | '/_authenticated/admin/moten'
@@ -681,6 +694,13 @@ declare module '@tanstack/react-router' {
       path: '/installningar'
       fullPath: '/admin/installningar'
       preLoaderRoute: typeof AuthenticatedAdminInstallningarRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/integrationer': {
+      id: '/_authenticated/admin/integrationer'
+      path: '/integrationer'
+      fullPath: '/admin/integrationer'
+      preLoaderRoute: typeof AuthenticatedAdminIntegrationerRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/kommunikation': {
@@ -863,6 +883,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminEntreprenorerRoute: typeof AuthenticatedAdminEntreprenorerRoute
   AuthenticatedAdminFastigheterRoute: typeof AuthenticatedAdminFastigheterRoute
   AuthenticatedAdminInstallningarRoute: typeof AuthenticatedAdminInstallningarRoute
+  AuthenticatedAdminIntegrationerRoute: typeof AuthenticatedAdminIntegrationerRoute
   AuthenticatedAdminKommunikationRoute: typeof AuthenticatedAdminKommunikationRoute
   AuthenticatedAdminMeddelandenRoute: typeof AuthenticatedAdminMeddelandenRoute
   AuthenticatedAdminMotenRoute: typeof AuthenticatedAdminMotenRoute
@@ -884,6 +905,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminEntreprenorerRoute: AuthenticatedAdminEntreprenorerRoute,
   AuthenticatedAdminFastigheterRoute: AuthenticatedAdminFastigheterRoute,
   AuthenticatedAdminInstallningarRoute: AuthenticatedAdminInstallningarRoute,
+  AuthenticatedAdminIntegrationerRoute: AuthenticatedAdminIntegrationerRoute,
   AuthenticatedAdminKommunikationRoute: AuthenticatedAdminKommunikationRoute,
   AuthenticatedAdminMeddelandenRoute: AuthenticatedAdminMeddelandenRoute,
   AuthenticatedAdminMotenRoute: AuthenticatedAdminMotenRoute,

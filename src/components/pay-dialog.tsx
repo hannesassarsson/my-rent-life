@@ -48,16 +48,23 @@ const methods: {
 export function PayDialog({
   payment,
   kindLabel,
+  bankgiro,
 }: {
-  payment: { id: string; amount: number | string; period: string; due_date: string };
+  payment: {
+    id: string;
+    amount: number | string;
+    period: string;
+    due_date: string;
+    ocr?: string | null;
+  };
   kindLabel: string;
+  bankgiro?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [method, setMethod] = useState<PayMethod>("card");
   const payFn = useServerFn(payMyPayment);
   const qc = useQueryClient();
-  // Ett stabilt OCR-nummer per avi för demon.
-  const ocr = payment.id.replace(/\D/g, "").slice(0, 12).padEnd(12, "0");
+  const ocr = payment.ocr ?? "–";
 
   const pay = useMutation({
     mutationFn: () => payFn({ data: { id: payment.id, method } }),
@@ -123,7 +130,7 @@ export function PayDialog({
 
         {method === "bank" && (
           <div className="rounded-xl border border-border bg-surface-muted p-3 text-xs text-muted-foreground">
-            <p>Bankgiro: 123-4567</p>
+            <p>Bankgiro: {bankgiro ?? "–"}</p>
             <p className="mt-1">OCR-nummer: {ocr}</p>
           </div>
         )}

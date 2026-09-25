@@ -16,6 +16,7 @@ import {
   ClipboardCheck,
   CreditCard,
   DoorOpen,
+  Plug,
 } from "lucide-react";
 
 import { AppShell, type NavItem } from "@/components/app-shell";
@@ -37,6 +38,12 @@ const items: NavItem[] = [
     term: "residentPlural",
   },
   { label: "Ekonomi", to: "/admin/ekonomi", icon: Wallet, permission: "economy.view" },
+  {
+    label: "Integrationer",
+    to: "/admin/integrationer",
+    icon: Plug,
+    permission: "economy.edit",
+  },
   { label: "Bokningar", to: "/admin/bokningar", icon: CalendarCheck, permission: "bookings.edit" },
   {
     label: "Kommunikation",
