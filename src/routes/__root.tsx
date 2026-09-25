@@ -100,6 +100,26 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
 
+  // En flik som var öppen när en ny version publicerades kan försöka hämta
+  // kodfiler som inte finns längre; ladda då om sidan en gång.
+  useEffect(() => {
+    const onPreloadError = (event: Event) => {
+      event.preventDefault();
+      if (sessionStorage.getItem("reloaded-after-deploy")) return;
+      sessionStorage.setItem("reloaded-after-deploy", "1");
+      window.location.reload();
+    };
+    window.addEventListener("vite:preloadError", onPreloadError);
+    const clear = window.setTimeout(
+      () => sessionStorage.removeItem("reloaded-after-deploy"),
+      10_000,
+    );
+    return () => {
+      window.removeEventListener("vite:preloadError", onPreloadError);
+      window.clearTimeout(clear);
+    };
+  }, []);
+
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {
       // Återställningslänken kan landa på startsidan om adressen inte är

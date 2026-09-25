@@ -85,8 +85,14 @@ function AuthPage() {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) void goHome("/app");
+    // Fråga servern om sessionen fortfarande gäller. En utgången session i
+    // webbläsaren får inte skicka runt användaren mellan sidorna; då loggas
+    // den ut lokalt så att inloggning och demoknappar fungerar.
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session) return;
+      const { data: user, error } = await supabase.auth.getUser();
+      if (user.user && !error) void goHome("/app");
+      else await supabase.auth.signOut({ scope: "local" });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
