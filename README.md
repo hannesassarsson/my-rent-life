@@ -30,14 +30,16 @@ bun run dev        # http://localhost:8080
 
 Lägg dem i `.env` (se befintlig fil):
 
-| Variabel                        | Används av                                    |
-| ------------------------------- | --------------------------------------------- |
-| `VITE_SUPABASE_URL`             | Klienten (webbläsaren)                        |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Klienten (webbläsaren)                        |
-| `SUPABASE_URL`                  | Servern (SSR och serverfunktioner)            |
-| `SUPABASE_PUBLISHABLE_KEY`      | Servern (SSR och serverfunktioner)            |
-| `SUPABASE_SERVICE_ROLE_KEY`     | Endast `client.server.ts` – aldrig i klienten |
-| `DATABASE_URL`                  | `drizzle-kit` (migrationer)                   |
+| Variabel                          | Används av                                     |
+| --------------------------------- | ---------------------------------------------- |
+| `VITE_SUPABASE_URL`               | Klienten (webbläsaren)                         |
+| `VITE_SUPABASE_PUBLISHABLE_KEY`   | Klienten (webbläsaren)                         |
+| `SUPABASE_URL`                    | Servern (SSR och serverfunktioner)             |
+| `SUPABASE_PUBLISHABLE_KEY`        | Servern (SSR och serverfunktioner)             |
+| `SUPABASE_SERVICE_ROLE_KEY`       | Endast `client.server.ts` – aldrig i klienten  |
+| `DATABASE_URL`                    | `drizzle-kit` (migrationer)                    |
+| `DEMO_ADMIN_EMAIL`/`_PASSWORD`    | Servern – knappen "Se demomiljön" (förvaltare) |
+| `DEMO_RESIDENT_EMAIL`/`_PASSWORD` | Servern – knappen "Se demomiljön" (boende)     |
 
 ## Skript
 
@@ -47,7 +49,21 @@ bun run build      # produktionsbygge till .output/
 bun run preview    # förhandsgranska bygget
 bun run lint       # eslint
 bun run format     # prettier --write .
+./scripts/test-db.sh  # migrationer + databastester mot en tom Postgres (PG*-variabler)
 ```
+
+GitHub Actions (`.github/workflows/ci.yml`) kör typkoll, lint, formatkontroll,
+bygge och databastesterna på varje PR och push till main.
+
+## Demomiljön
+
+- Demoföreningen BRF Solrosen återställs varje natt kl. 03:00 UTC av
+  `public.reset_demo()` (pg_cron), med datum räknade från dagens datum.
+- "Se demomiljön" på `/auth` loggar in på visningskonton vars uppgifter bara finns
+  i `DEMO_*`-variablerna. Konton med `app_metadata.demo_account = true` kan inte
+  byta lösenord eller e-post via Auth-API:t.
+- Förfrågningar från `/boka-demo` sparas i tabellen `demo_requests` och läses i
+  Supabase-dashboarden (Table Editor).
 
 ## Driftsättning
 
