@@ -191,6 +191,8 @@ export const startCheckout = createServerFn({ method: "POST" })
       metadata: { organization_id: orgId, plan: data.plan },
       client_reference_id: orgId,
       locale: "sv",
+      // Alltid kronor: ingen växling till kundens lokala valuta.
+      adaptive_pricing: { enabled: false },
       allow_promotion_codes: true,
       billing_address_collection: "required",
       tax_id_collection: { enabled: true },
