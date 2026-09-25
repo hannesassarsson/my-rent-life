@@ -90,7 +90,9 @@ function AdminRequests() {
                   params={{ id: r.id }}
                   className="flex flex-wrap items-center gap-3 px-5 py-4 transition-colors hover:bg-surface-muted"
                 >
-                  <span className="w-14 text-xs text-muted-foreground tnum">#{r.ticket_number}</span>
+                  <span className="w-14 text-xs text-muted-foreground tnum">
+                    #{r.ticket_number}
+                  </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{r.title}</p>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">

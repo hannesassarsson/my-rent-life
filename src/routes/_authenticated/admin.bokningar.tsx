@@ -81,8 +81,8 @@ function AdminBookings() {
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">
                         {resourceKindLabels[r.kind as string] ?? r.kind} ·{" "}
                         {String(r.open_from).slice(0, 5)}–{String(r.open_to).slice(0, 5)} ·{" "}
-                        {r.slot_minutes} min · max {r.max_active_bookings} aktiva ·{" "}
-                        {r.days_ahead} dagar framåt
+                        {r.slot_minutes} min · max {r.max_active_bookings} aktiva · {r.days_ahead}{" "}
+                        dagar framåt
                       </p>
                     </div>
                     <StatusPill tone="info">{bookingsFor(r.id)} bokningar</StatusPill>

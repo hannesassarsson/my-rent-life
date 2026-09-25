@@ -13,7 +13,10 @@ export const Route = createFileRoute("/_authenticated/admin/")({
 
 function AdminOverview() {
   const fn = useServerFn(getAdminOverview);
-  const { data, isPending, error } = useQuery({ queryKey: ["admin-overview"], queryFn: () => fn() });
+  const { data, isPending, error } = useQuery({
+    queryKey: ["admin-overview"],
+    queryFn: () => fn(),
+  });
 
   if (error) {
     return (
@@ -34,11 +37,7 @@ function AdminOverview() {
       <PageHeader title="Översikt" subtitle={data.me.organization?.name ?? undefined} />
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi
-          label="Lägenheter"
-          value={data.units.total}
-          hint={`${data.units.active} aktiva`}
-        />
+        <Kpi label="Lägenheter" value={data.units.total} hint={`${data.units.active} aktiva`} />
         <Kpi
           label="Felanmälningar"
           value={data.requests.open}
@@ -51,11 +50,7 @@ function AdminOverview() {
           tone="success"
           hint={`${data.economy.unpaid} obetalda · ${kr(data.economy.billed)} fakturerat`}
         />
-        <Kpi
-          label="Kommunikation"
-          value={data.drafts.length}
-          hint="opublicerade meddelanden"
-        />
+        <Kpi label="Kommunikation" value={data.drafts.length} hint="opublicerade meddelanden" />
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -90,8 +85,8 @@ function AdminOverview() {
             <li className="flex items-start gap-3">
               <StatusPill tone="info">Ärenden</StatusPill>
               <span>
-                Genomsnittlig lösningstid är {String(data.requests.avgResolutionDays).replace(".", ",")}{" "}
-                dagar.
+                Genomsnittlig lösningstid är{" "}
+                {String(data.requests.avgResolutionDays).replace(".", ",")} dagar.
               </span>
             </li>
           </ul>
@@ -111,7 +106,10 @@ function AdminOverview() {
                       <span className="text-muted-foreground tnum">{share} %</span>
                     </div>
                     <div className="mt-1.5 h-1.5 rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${share}%` }} />
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{ width: `${share}%` }}
+                      />
                     </div>
                   </li>
                 );

@@ -28,7 +28,7 @@ function MeetingsPage() {
   const { data, isPending } = useQuery({ queryKey: ["meetings"], queryFn: () => fn() });
 
   const mutation = useMutation({
-    mutationFn: (v: { meetingId: string; status: string }) => attend({ data: v }),
+    mutationFn: (v: { meetingId: string; status: "attending" | "declined" }) => attend({ data: v }),
     onSuccess: () => {
       toast.success("Din anmälan är sparad");
       void qc.invalidateQueries({ queryKey: ["meetings"] });

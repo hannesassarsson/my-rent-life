@@ -5,14 +5,18 @@ export function kr(amount: number | string | null | undefined) {
 
 export function dateLong(value: string | Date | null | undefined) {
   if (!value) return "–";
-  return new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "long", year: "numeric" }).format(
-    new Date(value),
-  );
+  return new Intl.DateTimeFormat("sv-SE", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(value));
 }
 
 export function dateShort(value: string | Date | null | undefined) {
   if (!value) return "–";
-  return new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short" }).format(
+    new Date(value),
+  );
 }
 
 export function dateTime(value: string | Date | null | undefined) {

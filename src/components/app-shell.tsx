@@ -10,7 +10,11 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
-export type NavItem = { label: string; to: string; icon: React.ComponentType<{ className?: string }> };
+export type NavItem = {
+  label: string;
+  to: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
 
 export function Logo({ className }: { className?: string }) {
   return (
@@ -33,7 +37,8 @@ function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => v
     <nav className="space-y-0.5">
       {items.map((item) => {
         const active =
-          pathname === item.to || (item.to !== "/app" && item.to !== "/admin" && pathname.startsWith(item.to));
+          pathname === item.to ||
+          (item.to !== "/app" && item.to !== "/admin" && pathname.startsWith(item.to));
         const Icon = item.icon;
         return (
           <Link

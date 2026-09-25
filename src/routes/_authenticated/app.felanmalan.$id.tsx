@@ -15,7 +15,10 @@ export const Route = createFileRoute("/_authenticated/app/felanmalan/$id")({
   head: () => ({
     meta: [
       { title: "Mitt ärende – Boendeplattformen" },
-      { name: "description", content: "Följ ditt ärende: status, tidslinje och svar från förvaltningen." },
+      {
+        name: "description",
+        content: "Följ ditt ärende: status, tidslinje och svar från förvaltningen.",
+      },
       { property: "og:title", content: "Mitt ärende – Boendeplattformen" },
       { property: "og:description", content: "Följ status och kommunikation för ditt ärende." },
     ],
@@ -153,9 +156,7 @@ function RequestPage() {
             <DataRow label="Akut" value={r.is_urgent ? "Ja" : "Nej"} />
             <DataRow label="Ansvarig" value={r.assignee_name ?? "Inte tilldelat"} />
             <DataRow label="Entreprenör" value={r.contractors?.company ?? "–"} />
-            {r.contractors?.phone ? (
-              <DataRow label="Telefon" value={r.contractors.phone} />
-            ) : null}
+            {r.contractors?.phone ? <DataRow label="Telefon" value={r.contractors.phone} /> : null}
             <DataRow
               label="Bostad"
               value={r.units ? `${r.units.unit_number} · ${r.units.address}` : "–"}

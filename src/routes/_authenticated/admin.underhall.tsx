@@ -4,7 +4,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { getMaintenanceProjects, saveMaintenanceProject } from "@/lib/app.functions";
+import {
+  getMaintenanceProjects,
+  saveMaintenanceProject,
+  type ProjectStatus,
+} from "@/lib/app.functions";
 import { PageHeader, Panel, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { ProjectStatusBadge } from "@/components/status-badge";
 import { kr } from "@/lib/format";
@@ -32,7 +36,7 @@ export const Route = createFileRoute("/_authenticated/admin/underhall")({
   component: AdminMaintenance,
 });
 
-type Draft = { id?: string; title: string; year: number; status: string; note: string };
+type Draft = { id?: string; title: string; year: number; status: ProjectStatus; note: string };
 
 const emptyDraft = (): Draft => ({
   title: "",
@@ -105,7 +109,7 @@ function AdminMaintenance() {
                     <Label>Status</Label>
                     <Select
                       value={draft.status}
-                      onValueChange={(v) => setDraft({ ...draft, status: v })}
+                      onValueChange={(v) => setDraft({ ...draft, status: v as ProjectStatus })}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -173,7 +177,7 @@ function AdminMaintenance() {
                             id: p.id,
                             title: p.title,
                             year: p.year,
-                            status: p.status as string,
+                            status: p.status as ProjectStatus,
                             note: p.note ?? "",
                           });
                           setOpen(true);

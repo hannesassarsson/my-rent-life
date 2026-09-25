@@ -8,5 +8,9 @@ import { orgProfileFor } from "@/lib/org-profile";
 export function useOrgProfile() {
   const getMeFn = useServerFn(getMe);
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: () => getMeFn() });
-  return { me, profile: orgProfileFor(me?.organization?.org_type), orgType: me?.organization?.org_type };
+  return {
+    me,
+    profile: orgProfileFor(me?.organization?.org_type),
+    orgType: me?.organization?.org_type,
+  };
 }

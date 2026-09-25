@@ -155,7 +155,9 @@ function BookingsPage() {
                       {new Intl.DateTimeFormat("sv-SE", { weekday: "short" }).format(d)}
                     </span>
                     <span className="mt-0.5 block text-muted-foreground">
-                      {new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short" }).format(d)}
+                      {new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short" }).format(
+                        d,
+                      )}
                     </span>
                   </button>
                 );

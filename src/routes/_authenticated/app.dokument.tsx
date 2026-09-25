@@ -12,7 +12,10 @@ export const Route = createFileRoute("/_authenticated/app/dokument")({
   head: () => ({
     meta: [
       { title: "Dokument – Boendeplattformen" },
-      { name: "description", content: "Stadgar, protokoll, avtal och andra dokument för ditt boende." },
+      {
+        name: "description",
+        content: "Stadgar, protokoll, avtal och andra dokument för ditt boende.",
+      },
       { property: "og:title", content: "Dokument – Boendeplattformen" },
       { property: "og:description", content: "Stadgar, protokoll och avtal samlade digitalt." },
     ],

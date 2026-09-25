@@ -88,7 +88,10 @@ function AdminEconomy() {
             </ul>
           </Panel>
 
-          <Panel title="Obetalda poster" description="Markera som betald när betalningen är bokförd">
+          <Panel
+            title="Obetalda poster"
+            description="Markera som betald när betalningen är bokförd"
+          >
             {(data?.unpaid ?? []).length === 0 ? (
               <EmptyState title="Allt är betalt" description="Inga utestående poster just nu." />
             ) : (

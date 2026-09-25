@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -6,6 +7,32 @@ import type { Database } from "@/integrations/supabase/types";
 type Db = SupabaseClient<Database>;
 
 const STAFF_ROLES = ["super_admin", "org_admin", "property_manager", "board_member", "staff"];
+
+/* ----------------------------- VALIDERING ----------------------------- */
+
+const id = z.string().uuid();
+const shortText = z.string().trim().max(200);
+const longText = z.string().max(10_000);
+const requestStatus = z.enum([
+  "new",
+  "received",
+  "assigned",
+  "booked",
+  "in_progress",
+  "resolved",
+  "closed",
+]);
+const requestPriority = z.enum(["low", "normal", "high", "urgent"]);
+const audienceScope = z.enum(["organization", "property", "building"]);
+const projectStatus = z.enum(["planned", "in_progress", "done"]);
+const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, "Ogiltig tid");
+
+const byIdSchema = z.object({ id });
+
+export type RequestStatus = z.infer<typeof requestStatus>;
+export type RequestPriority = z.infer<typeof requestPriority>;
+export type AudienceScope = z.infer<typeof audienceScope>;
+export type ProjectStatus = z.infer<typeof projectStatus>;
 
 async function loadMe(supabase: Db, userId: string) {
   const { data: profile } = await supabase
@@ -135,7 +162,7 @@ export const getMyRequests = createServerFn({ method: "GET" })
   });
 
 export const getRequestDetail = createServerFn({ method: "GET" })
-  .inputValidator((d: { id: string }) => d)
+  .inputValidator(byIdSchema)
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
@@ -165,13 +192,13 @@ export const getRequestDetail = createServerFn({ method: "GET" })
 
 export const createRequest = createServerFn({ method: "POST" })
   .inputValidator(
-    (d: {
-      category: string;
-      title: string;
-      description: string;
-      room?: string;
-      isUrgent: boolean;
-    }) => d,
+    z.object({
+      category: shortText.min(1),
+      title: shortText.min(1),
+      description: longText,
+      room: shortText.optional(),
+      isUrgent: z.boolean(),
+    }),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
@@ -205,7 +232,13 @@ export const createRequest = createServerFn({ method: "POST" })
   });
 
 export const addRequestComment = createServerFn({ method: "POST" })
-  .inputValidator((d: { requestId: string; body: string; action?: "still_broken" | "resolved" }) => d)
+  .inputValidator(
+    z.object({
+      requestId: id,
+      body: longText,
+      action: z.enum(["still_broken", "resolved"]).optional(),
+    }),
+  )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
@@ -265,7 +298,12 @@ export const getResources = createServerFn({ method: "GET" })
   });
 
 export const getResourceDay = createServerFn({ method: "GET" })
-  .inputValidator((d: { resourceId: string; date: string }) => d)
+  .inputValidator(
+    z.object({
+      resourceId: id,
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ogiltigt datum"),
+    }),
+  )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
@@ -299,7 +337,18 @@ export const getMyBookings = createServerFn({ method: "GET" })
   });
 
 export const createBooking = createServerFn({ method: "POST" })
-  .inputValidator((d: { resourceId: string; startsAt: string; endsAt: string }) => d)
+  .inputValidator(
+    z
+      .object({
+        resourceId: id,
+        startsAt: z.string().datetime({ offset: true }),
+        endsAt: z.string().datetime({ offset: true }),
+      })
+      .refine((d) => new Date(d.endsAt) > new Date(d.startsAt), {
+        message: "Sluttiden måste vara efter starttiden",
+        path: ["endsAt"],
+      }),
+  )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
@@ -339,7 +388,7 @@ export const createBooking = createServerFn({ method: "POST" })
   });
 
 export const cancelBooking = createServerFn({ method: "POST" })
-  .inputValidator((d: { id: string }) => d)
+  .inputValidator(byIdSchema)
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
@@ -379,13 +428,21 @@ export const getMeetings = createServerFn({ method: "GET" })
     const supabase = context.supabase as Db;
     const [meetings, attendance] = await Promise.all([
       supabase.from("meetings").select("*").order("starts_at", { ascending: false }),
-      supabase.from("meeting_attendance").select("meeting_id, status").eq("user_id", context.userId),
+      supabase
+        .from("meeting_attendance")
+        .select("meeting_id, status")
+        .eq("user_id", context.userId),
     ]);
     return { meetings: meetings.data ?? [], attendance: attendance.data ?? [] };
   });
 
 export const setMeetingAttendance = createServerFn({ method: "POST" })
-  .inputValidator((d: { meetingId: string; status: string }) => d)
+  .inputValidator(
+    z.object({
+      meetingId: id,
+      status: z.enum(["attending", "declined"]),
+    }),
+  )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
@@ -434,7 +491,14 @@ export const getMessages = createServerFn({ method: "GET" })
   });
 
 export const sendMessage = createServerFn({ method: "POST" })
-  .inputValidator((d: { threadKey: string; subject?: string; body: string; requestId?: string }) => d)
+  .inputValidator(
+    z.object({
+      threadKey: shortText.min(1),
+      subject: shortText.optional(),
+      body: longText.trim().min(1),
+      requestId: id.optional(),
+    }),
+  )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
@@ -464,6 +528,17 @@ export const getAdminOverview = createServerFn({ method: "GET" })
     const supabase = context.supabase as Db;
     const { me, orgId } = await requireStaff(supabase, context.userId);
 
+    // Senaste debiteringsperioden som har startat (inte framtida perioder).
+    const { data: latestPayment } = await supabase
+      .from("payments")
+      .select("period")
+      .eq("organization_id", orgId)
+      .lte("period", new Date().toISOString().slice(0, 10))
+      .order("period", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const currentPeriod = latestPayment?.period ?? null;
+
     const [units, requests, payments, bookings, drafts, resources, projects, meetings] =
       await Promise.all([
         supabase.from("units").select("id, status").eq("organization_id", orgId),
@@ -471,11 +546,13 @@ export const getAdminOverview = createServerFn({ method: "GET" })
           .from("maintenance_requests")
           .select("id, status, priority, is_urgent, created_at, resolved_at, category")
           .eq("organization_id", orgId),
-        supabase
-          .from("payments")
-          .select("status, amount, period")
-          .eq("organization_id", orgId)
-          .eq("period", "2026-09-01"),
+        currentPeriod
+          ? supabase
+              .from("payments")
+              .select("status, amount, period")
+              .eq("organization_id", orgId)
+              .eq("period", currentPeriod)
+          : Promise.resolve({ data: [] as never[] }),
         supabase
           .from("bookings")
           .select("id, resource_id, starts_at")
@@ -573,14 +650,14 @@ export const getAdminRequests = createServerFn({ method: "GET" })
 
 export const updateRequestAdmin = createServerFn({ method: "POST" })
   .inputValidator(
-    (d: {
-      id: string;
-      status?: string;
-      priority?: string;
-      assigneeName?: string | null;
-      contractorId?: string | null;
-      note?: string;
-    }) => d,
+    z.object({
+      id,
+      status: requestStatus.optional(),
+      priority: requestPriority.optional(),
+      assigneeName: shortText.nullable().optional(),
+      contractorId: id.nullable().optional(),
+      note: longText.optional(),
+    }),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
@@ -687,7 +764,7 @@ export const getAdminResidents = createServerFn({ method: "GET" })
   });
 
 export const getResidentDetail = createServerFn({ method: "GET" })
-  .inputValidator((d: { id: string }) => d)
+  .inputValidator(byIdSchema)
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
@@ -746,15 +823,15 @@ export const getContractors = createServerFn({ method: "GET" })
 
 export const saveContractor = createServerFn({ method: "POST" })
   .inputValidator(
-    (d: {
-      id?: string;
-      company: string;
-      contactName?: string;
-      phone?: string;
-      email?: string;
-      category?: string;
-      agreementNote?: string;
-    }) => d,
+    z.object({
+      id: id.optional(),
+      company: shortText.min(1),
+      contactName: shortText.optional(),
+      phone: shortText.optional(),
+      email: shortText.optional(),
+      category: shortText.optional(),
+      agreementNote: longText.optional(),
+    }),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
@@ -799,16 +876,16 @@ export const getAdminAnnouncements = createServerFn({ method: "GET" })
 
 export const saveAnnouncement = createServerFn({ method: "POST" })
   .inputValidator(
-    (d: {
-      id?: string;
-      title: string;
-      body: string;
-      category: string;
-      audienceScope: string;
-      propertyId?: string | null;
-      buildingId?: string | null;
-      publish: boolean;
-    }) => d,
+    z.object({
+      id: id.optional(),
+      title: shortText.min(1),
+      body: longText,
+      category: shortText.min(1),
+      audienceScope,
+      propertyId: id.nullable().optional(),
+      buildingId: id.nullable().optional(),
+      publish: z.boolean(),
+    }),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
@@ -833,7 +910,7 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
   });
 
 export const publishAnnouncement = createServerFn({ method: "POST" })
-  .inputValidator((d: { id: string; publish: boolean }) => d)
+  .inputValidator(z.object({ id, publish: z.boolean() }))
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
@@ -868,16 +945,24 @@ export const getAdminBookings = createServerFn({ method: "GET" })
 
 export const updateResource = createServerFn({ method: "POST" })
   .inputValidator(
-    (d: {
-      id: string;
-      slotMinutes: number;
-      openFrom: string;
-      openTo: string;
-      maxActiveBookings: number;
-      daysAhead: number;
-      cancelHours: number;
-      isActive: boolean;
-    }) => d,
+    z.object({
+      id,
+      slotMinutes: z
+        .number()
+        .int()
+        .min(15)
+        .max(24 * 60),
+      openFrom: timeOfDay,
+      openTo: timeOfDay,
+      maxActiveBookings: z.number().int().min(1).max(100),
+      daysAhead: z.number().int().min(1).max(365),
+      cancelHours: z
+        .number()
+        .int()
+        .min(0)
+        .max(24 * 14),
+      isActive: z.boolean(),
+    }),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
@@ -911,10 +996,19 @@ export const getAdminEconomy = createServerFn({ method: "GET" })
       .order("period", { ascending: false })
       .limit(1000);
     const rows = data ?? [];
-    const byPeriod = new Map<string, { period: string; billed: number; paid: number; count: number; paidCount: number }>();
+    const byPeriod = new Map<
+      string,
+      { period: string; billed: number; paid: number; count: number; paidCount: number }
+    >();
     rows.forEach((r) => {
       const key = r.period as string;
-      const entry = byPeriod.get(key) ?? { period: key, billed: 0, paid: 0, count: 0, paidCount: 0 };
+      const entry = byPeriod.get(key) ?? {
+        period: key,
+        billed: 0,
+        paid: 0,
+        count: 0,
+        paidCount: 0,
+      };
       entry.billed += Number(r.amount);
       entry.count += 1;
       if (r.status === "paid") {
@@ -930,7 +1024,7 @@ export const getAdminEconomy = createServerFn({ method: "GET" })
   });
 
 export const markPaymentPaid = createServerFn({ method: "POST" })
-  .inputValidator((d: { id: string }) => d)
+  .inputValidator(byIdSchema)
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
@@ -955,7 +1049,15 @@ export const getMaintenanceProjects = createServerFn({ method: "GET" })
   });
 
 export const saveMaintenanceProject = createServerFn({ method: "POST" })
-  .inputValidator((d: { id?: string; title: string; year: number; status: string; note?: string }) => d)
+  .inputValidator(
+    z.object({
+      id: id.optional(),
+      title: shortText.min(1),
+      year: z.number().int().min(1900).max(2200),
+      status: projectStatus,
+      note: longText.optional(),
+    }),
+  )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;

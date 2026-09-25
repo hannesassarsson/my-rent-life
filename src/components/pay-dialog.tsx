@@ -61,7 +61,8 @@ export function PayDialog({
         <DialogHeader>
           <DialogTitle>Betala {kindLabel.toLowerCase()}</DialogTitle>
           <DialogDescription>
-            {monthName(payment.period)} · {kr(payment.amount)} · förfaller {dateLong(payment.due_date)}
+            {monthName(payment.period)} · {kr(payment.amount)} · förfaller{" "}
+            {dateLong(payment.due_date)}
           </DialogDescription>
         </DialogHeader>
 
@@ -80,7 +81,9 @@ export function PayDialog({
               >
                 <span
                   className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
-                    active ? "bg-primary text-primary-foreground" : "bg-surface-muted text-muted-foreground"
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-surface-muted text-muted-foreground"
                   }`}
                 >
                   <Icon className="size-4" />

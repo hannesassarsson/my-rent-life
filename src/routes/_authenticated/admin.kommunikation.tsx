@@ -4,7 +4,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { getAdminAnnouncements, saveAnnouncement, publishAnnouncement } from "@/lib/app.functions";
+import {
+  getAdminAnnouncements,
+  saveAnnouncement,
+  publishAnnouncement,
+  type AudienceScope,
+} from "@/lib/app.functions";
 import { PageHeader, Panel, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { StatusPill } from "@/components/status-badge";
 import { dateLong } from "@/lib/format";
@@ -44,7 +49,7 @@ type Draft = {
   title: string;
   body: string;
   category: string;
-  audienceScope: string;
+  audienceScope: AudienceScope;
   propertyId: string | null;
   buildingId: string | null;
 };
@@ -159,7 +164,7 @@ function AdminCommunication() {
                       onValueChange={(v) =>
                         setDraft({
                           ...draft,
-                          audienceScope: v,
+                          audienceScope: v as AudienceScope,
                           propertyId: v === "organization" ? null : draft.propertyId,
                           buildingId: v === "building" ? draft.buildingId : null,
                         })
@@ -180,7 +185,9 @@ function AdminCommunication() {
                       <Label>Fastighet</Label>
                       <Select
                         value={draft.propertyId ?? ""}
-                        onValueChange={(v) => setDraft({ ...draft, propertyId: v, buildingId: null })}
+                        onValueChange={(v) =>
+                          setDraft({ ...draft, propertyId: v, buildingId: null })
+                        }
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Välj fastighet" />
@@ -269,9 +276,7 @@ function AdminCommunication() {
                       size="sm"
                       variant="outline"
                       disabled={togglePublish.isPending}
-                      onClick={() =>
-                        togglePublish.mutate({ id: a.id, publish: !a.is_published })
-                      }
+                      onClick={() => togglePublish.mutate({ id: a.id, publish: !a.is_published })}
                     >
                       {a.is_published ? "Avpublicera" : "Publicera"}
                     </Button>

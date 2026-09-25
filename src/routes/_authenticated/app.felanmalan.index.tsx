@@ -166,7 +166,8 @@ function MyRequests() {
                 <div className="space-y-4">
                   <div className="rounded-xl border border-border p-4 text-sm">
                     <p className="font-medium">
-                      {categoryLabels.find((c) => c.value === category)?.icon} {title || "(ingen titel)"}
+                      {categoryLabels.find((c) => c.value === category)?.icon}{" "}
+                      {title || "(ingen titel)"}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {category}

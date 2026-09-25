@@ -5,7 +5,13 @@ import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
-import { getRequestDetail, updateRequestAdmin, getContractors } from "@/lib/app.functions";
+import {
+  getRequestDetail,
+  updateRequestAdmin,
+  getContractors,
+  type RequestPriority,
+  type RequestStatus,
+} from "@/lib/app.functions";
 import { PageHeader, Panel, DataRow, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { PriorityBadge, RequestStatusBadge } from "@/components/status-badge";
 import { dateTime, priorityLabels, requestStatusLabels } from "@/lib/format";
@@ -90,9 +96,7 @@ function AdminRequestDetail() {
               <DataRow label="Anmäld av" value={r.reporter_name ?? "—"} />
               <DataRow label="Rum" value={r.room ?? "—"} />
               <DataRow label="Inkom" value={dateTime(r.created_at)} />
-              {r.resolved_at ? (
-                <DataRow label="Löst" value={dateTime(r.resolved_at)} />
-              ) : null}
+              {r.resolved_at ? <DataRow label="Löst" value={dateTime(r.resolved_at)} /> : null}
             </dl>
           </Panel>
 
@@ -156,7 +160,7 @@ function AdminRequestDetail() {
                 <Label>Status</Label>
                 <Select
                   value={r.status as string}
-                  onValueChange={(value) => mutation.mutate({ id, status: value })}
+                  onValueChange={(value) => mutation.mutate({ id, status: value as RequestStatus })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -175,7 +179,9 @@ function AdminRequestDetail() {
                 <Label>Prioritet</Label>
                 <Select
                   value={r.priority as string}
-                  onValueChange={(value) => mutation.mutate({ id, priority: value })}
+                  onValueChange={(value) =>
+                    mutation.mutate({ id, priority: value as RequestPriority })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue />
