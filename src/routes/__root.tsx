@@ -121,7 +121,11 @@ function RootComponent() {
   }, []);
 
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((event) => {
+    let currentUser: string | null | undefined;
+    void supabase.auth.getSession().then(({ data }) => {
+      currentUser ??= data.session?.user.id ?? null;
+    });
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
       // Återställningslänken kan landa på startsidan om adressen inte är
       // godkänd i Supabase; skicka då vidare till sidan för nytt lösenord.
       if (event === "PASSWORD_RECOVERY" && window.location.pathname !== "/auth/aterstall") {
@@ -129,6 +133,13 @@ function RootComponent() {
         return;
       }
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+      const userId = session?.user.id ?? null;
+      if (event === "SIGNED_IN" && userId !== currentUser) {
+        // Ny användare: inget från den förra (eller från hämtningar som
+        // misslyckades medan ingen var inloggad) får ligga kvar i cachen.
+        queryClient.clear();
+      }
+      currentUser = userId;
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });
