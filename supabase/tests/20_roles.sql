@@ -22,7 +22,11 @@ set local request.jwt.claim.sub = 'eeeeeeee-0000-0000-0000-000000000001';
 
 -- ABC VVS har 1827, 1832, stopp i avlopp och läckage under diskbänk.
 select tests.expect_rows('select * from public.maintenance_requests', 4);
-select tests.expect_rows('select * from public.units', 4);
+-- Lägenheterna fördelas slumpvis i demodatan, så jämför med ärendenas lägenheter.
+select tests.assert(
+  (select count(*) from public.units) = (select count(distinct unit_id) from public.maintenance_requests)
+  and (select count(*) from public.units) > 0,
+  'entreprenören ser exakt lägenheterna i sina ärenden');
 select tests.expect_rows('select * from public.payments', 0);
 select tests.expect_rows('select * from public.residencies', 0);
 select tests.expect_rows($q$update public.maintenance_requests set status = 'booked' where ticket_number = 1827$q$, 1);
