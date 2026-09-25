@@ -13,16 +13,8 @@ import {
   refreshBilling,
   startCheckout,
 } from "@/lib/billing.functions";
-import {
-  PLANS,
-  PLAN_IDS,
-  VAT_RATE,
-  billableUnits,
-  kronor,
-  priceFor,
-  type BillingInterval,
-  type PlanId,
-} from "@/lib/plans";
+import { ADDONS, ADDON_IDS, PLANS, extraAddons, type AddonId } from "@/lib/plans";
+import { PlanPicker, type PlanChoice } from "@/components/plan-picker";
 import { DataRow, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
 import { StatusPill } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -71,7 +63,11 @@ function BillingPage() {
   const navigate = useNavigate();
   const { kop, synk } = Route.useSearch();
   const { data, isPending } = useQuery({ queryKey: ["billing"], queryFn: () => fn() });
-  const [interval, setInterval] = useState<BillingInterval>("year");
+  const [choice, setChoice] = useState<PlanChoice>({
+    plan: "standard",
+    addons: [],
+    interval: "year",
+  });
   const confirmed = useRef(false);
 
   const refresh = () => {
@@ -104,19 +100,27 @@ function BillingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [synk]);
 
+  // Utgå från det nuvarande abonnemanget när sidan laddas.
+  const loadedSub = data?.subscription;
   useEffect(() => {
-    const current = data?.subscription?.billingInterval;
-    if (current === "month" || current === "year") setInterval(current);
-  }, [data?.subscription?.billingInterval]);
+    if (!loadedSub) return;
+    setChoice({
+      plan: loadedSub.plan,
+      addons: loadedSub.addons.filter((a): a is AddonId =>
+        (ADDON_IDS as readonly string[]).includes(a),
+      ),
+      interval: loadedSub.billingInterval === "month" ? "month" : "year",
+    });
+  }, [loadedSub]);
 
   const checkout = useMutation({
-    mutationFn: (plan: PlanId) => checkoutFn({ data: { plan, interval } }),
+    mutationFn: (c: PlanChoice) => checkoutFn({ data: c }),
     onSuccess: (r) => {
       if (r.url) {
         window.location.assign(r.url);
         return;
       }
-      toast.success("Planen är ändrad");
+      toast.success("Abonnemanget är uppdaterat");
       refresh();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -134,6 +138,16 @@ function BillingPage() {
   const status = sub ? statusText(sub) : null;
   const isDemo = !!sub?.isDemo;
   const currentPlan = sub?.hasStripeSubscription ? sub.plan : null;
+  const currentExtras = sub ? extraAddons(sub.plan, sub.addons) : [];
+  const chosenExtras = extraAddons(choice.plan, choice.addons);
+  const unchanged =
+    !!currentPlan &&
+    sub?.status !== "canceled" &&
+    !sub?.cancelAtPeriodEnd &&
+    currentPlan === choice.plan &&
+    sub?.billingInterval === choice.interval &&
+    currentExtras.length === chosenExtras.length &&
+    currentExtras.every((a) => chosenExtras.includes(a));
   const busy = checkout.isPending || portal.isPending || !!kop;
   const canBuy = data.configured && !isDemo;
 
@@ -153,6 +167,12 @@ function BillingPage() {
         <Panel title="Nuvarande abonnemang" className="lg:col-span-2">
           <dl>
             <DataRow label="Plan" value={sub ? PLANS[sub.plan].name : "–"} />
+            {currentExtras.length > 0 ? (
+              <DataRow
+                label="Tillägg"
+                value={currentExtras.map((a) => ADDONS[a].name).join(", ")}
+              />
+            ) : null}
             <DataRow
               label="Status"
               value={status ? <StatusPill tone={status.tone}>{status.label}</StatusPill> : "–"}
@@ -200,106 +220,34 @@ function BillingPage() {
         </p>
       ) : null}
 
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold tracking-tight">Planer</h2>
-        <IntervalToggle value={interval} onChange={setInterval} />
-      </div>
-
-      <div className="mt-4 grid gap-5 md:grid-cols-3">
-        {PLAN_IDS.map((id) => {
-          const plan = PLANS[id];
-          const price = priceFor(id, data.units, interval);
-          const isCurrent =
-            currentPlan === id && sub?.billingInterval === interval && sub.status !== "canceled";
-          const minApplies = billableUnits(id, data.units) > data.units;
-          return (
-            <section
-              key={id}
-              className={cn(
-                "card-surface flex flex-col p-5",
-                id === "standard" && "ring-2 ring-primary",
-              )}
+      <div className="mt-8">
+        <PlanPicker
+          units={data.units}
+          value={choice}
+          onChange={setChoice}
+          currentPlan={currentPlan}
+          action={
+            <Button
+              className="w-full sm:w-auto"
+              disabled={!canBuy || unchanged || busy}
+              onClick={() => checkout.mutate(choice)}
             >
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-base font-semibold">{plan.name}</h3>
-                {id === "standard" ? <StatusPill tone="info">Vanligast</StatusPill> : null}
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">{plan.tagline}</p>
-              <p className="mt-4">
-                <span className="text-2xl font-semibold tnum">{kronor(price)}</span>
-                <span className="text-sm text-muted-foreground">
-                  {" "}
-                  / {interval === "year" ? "år" : "månad"}
-                </span>
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {kronor(price * (1 + VAT_RATE))} inkl. moms ·{" "}
-                {minApplies
-                  ? `lägsta pris ${kronor(plan.minMonthly)}/mån`
-                  : `${plan.perUnit} kr × ${data.units} lägenheter`}
-              </p>
-              <ul className="mt-4 flex-1 space-y-2 text-sm">
-                {plan.highlights.map((h) => (
-                  <li key={h} className="flex gap-2">
-                    <Check className="mt-0.5 size-4 shrink-0 text-success" />
-                    {h}
-                  </li>
-                ))}
-              </ul>
-              <Button
-                className="mt-5"
-                variant={id === "standard" ? "default" : "outline"}
-                disabled={!canBuy || isCurrent || busy}
-                onClick={() => checkout.mutate(id)}
-              >
-                {isCurrent
-                  ? "Nuvarande plan"
-                  : checkout.isPending && checkout.variables === id
-                    ? "Öppnar…"
-                    : currentPlan
-                      ? `Byt till ${plan.name}`
-                      : `Välj ${plan.name}`}
-              </Button>
-            </section>
-          );
-        })}
+              {unchanged
+                ? "Det här är ert nuvarande abonnemang"
+                : checkout.isPending
+                  ? "Öppnar…"
+                  : currentPlan
+                    ? "Uppdatera abonnemanget"
+                    : "Gå till betalning"}
+            </Button>
+          }
+        />
       </div>
 
       <p className="mt-6 text-sm text-muted-foreground">
         Vill ni hellre betala mot faktura med bankgiro, eller har ni fler än 2 000 lägenheter? Hör
         av er till oss så ordnar vi det.
       </p>
-    </div>
-  );
-}
-
-function IntervalToggle({
-  value,
-  onChange,
-}: {
-  value: BillingInterval;
-  onChange: (v: BillingInterval) => void;
-}) {
-  return (
-    <div className="inline-flex rounded-lg border border-border bg-surface p-0.5 text-sm">
-      {(
-        [
-          ["month", "Månadsvis"],
-          ["year", "Årsvis – 2 månader gratis"],
-        ] as const
-      ).map(([v, label]) => (
-        <button
-          key={v}
-          type="button"
-          onClick={() => onChange(v)}
-          className={cn(
-            "rounded-md px-3 py-1.5 transition-colors",
-            value === v ? "bg-primary text-primary-foreground" : "text-muted-foreground",
-          )}
-        >
-          {label}
-        </button>
-      ))}
     </div>
   );
 }

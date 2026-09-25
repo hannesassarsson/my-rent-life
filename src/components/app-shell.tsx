@@ -340,15 +340,15 @@ function UpgradeNotice({ feature, canManage }: { feature: string; canManage: boo
         <Lock className="size-5 text-muted-foreground" />
       </span>
       <h1 className="mt-4 text-xl font-semibold tracking-tight">
-        {feature} ingår i {PLANS.standard.name}
+        {feature} ingår inte i ert abonnemang
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Er nuvarande plan omfattar inte den här delen. Uppgradera för att få ekonomi, möten,
-        besiktningar, underhållsplan och entreprenörsportal.
+        Lägg till det som ett tillägg, eller byt till {PLANS.standard.name} där de vanligaste
+        tilläggen ingår.
       </p>
       {canManage ? (
         <Button className="mt-6" asChild>
-          <Link to="/admin/abonnemang">Se planer</Link>
+          <Link to="/admin/abonnemang">Se tillägg och planer</Link>
         </Button>
       ) : (
         <p className="mt-6 text-xs text-muted-foreground">Kontakta er administratör.</p>

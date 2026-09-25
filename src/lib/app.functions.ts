@@ -49,14 +49,14 @@ export type RequestPriority = z.infer<typeof requestPriority>;
 export type AudienceScope = z.infer<typeof audienceScope>;
 export type ProjectStatus = z.infer<typeof projectStatus>;
 
-async function loadMe(supabase: Db, userId: string) {
+export async function loadMe(supabase: Db, userId: string) {
   // Tre oberoende frågor i stället för fyra i följd; organisationen följer
   // med profilen.
   const [{ data: profileRow }, { data: roleRows }, { data: residency }] = await Promise.all([
     supabase
       .from("profiles")
       .select(
-        "id, full_name, email, phone, organization_id, organizations(id, name, org_type, subscriptions(plan, status, trial_ends_at, past_due_since, is_demo, invoice_billing))",
+        "id, full_name, email, phone, organization_id, organizations(id, name, org_type, subscriptions(plan, status, trial_ends_at, past_due_since, is_demo, invoice_billing, addons))",
       )
       .eq("id", userId)
       .maybeSingle(),

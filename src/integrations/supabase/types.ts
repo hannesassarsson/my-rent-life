@@ -8,6 +8,174 @@ export type Database = {
   };
   public: {
     Tables: {
+      access_doors: {
+        Row: {
+          id: string;
+          organization_id: string;
+          property_id: string | null;
+          name: string;
+          location: string | null;
+          kind: string;
+          residents_access: boolean;
+          reader_id: string | null;
+          is_online: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          property_id?: string | null;
+          name: string;
+          location?: string | null;
+          kind?: string;
+          residents_access?: boolean;
+          reader_id?: string | null;
+          is_online?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          property_id?: string | null;
+          name?: string;
+          location?: string | null;
+          kind?: string;
+          residents_access?: boolean;
+          reader_id?: string | null;
+          is_online?: boolean;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "access_doors_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "access_doors_property_id_fkey";
+            columns: ["property_id"];
+            isOneToOne: false;
+            referencedRelation: "properties";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      access_events: {
+        Row: {
+          id: string;
+          organization_id: string;
+          door_id: string;
+          key_id: string | null;
+          user_id: string | null;
+          holder_name: string | null;
+          result: string;
+          reason: string | null;
+          method: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          door_id: string;
+          key_id?: string | null;
+          user_id?: string | null;
+          holder_name?: string | null;
+          result: string;
+          reason?: string | null;
+          method?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          door_id?: string;
+          key_id?: string | null;
+          user_id?: string | null;
+          holder_name?: string | null;
+          result?: string;
+          reason?: string | null;
+          method?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "access_events_door_id_fkey";
+            columns: ["door_id"];
+            isOneToOne: false;
+            referencedRelation: "access_doors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "access_events_key_id_fkey";
+            columns: ["key_id"];
+            isOneToOne: false;
+            referencedRelation: "access_keys";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "access_events_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      access_keys: {
+        Row: {
+          id: string;
+          organization_id: string;
+          user_id: string | null;
+          holder_name: string;
+          holder_kind: string;
+          door_ids: string[];
+          valid_from: string;
+          valid_until: string | null;
+          revoked_at: string | null;
+          note: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          user_id?: string | null;
+          holder_name: string;
+          holder_kind?: string;
+          door_ids?: string[];
+          valid_from?: string;
+          valid_until?: string | null;
+          revoked_at?: string | null;
+          note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          user_id?: string | null;
+          holder_name?: string;
+          holder_kind?: string;
+          door_ids?: string[];
+          valid_from?: string;
+          valid_until?: string | null;
+          revoked_at?: string | null;
+          note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "access_keys_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       announcements: {
         Row: {
           audience_scope: string;
@@ -1108,6 +1276,7 @@ export type Database = {
       subscriptions: {
         Row: {
           organization_id: string;
+          addons: string[];
           plan: string;
           status: string;
           billing_interval: string | null;
@@ -1126,6 +1295,7 @@ export type Database = {
         };
         Insert: {
           organization_id: string;
+          addons?: string[];
           plan?: string;
           status?: string;
           billing_interval?: string | null;
@@ -1144,6 +1314,7 @@ export type Database = {
         };
         Update: {
           organization_id?: string;
+          addons?: string[];
           plan?: string;
           status?: string;
           billing_interval?: string | null;
@@ -1277,6 +1448,7 @@ export type Database = {
     };
     Functions: {
       public_demo_stats: { Args: never; Returns: Json };
+      unlock_door: { Args: { _door_id: string; _method?: string }; Returns: Json };
       apply_billing: {
         Args: {
           _secret: string;

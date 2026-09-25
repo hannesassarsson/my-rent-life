@@ -23,6 +23,8 @@ export const PERMISSIONS = [
   "maintenance.edit",
   "inspections.view",
   "inspections.edit",
+  "access.view",
+  "access.edit",
   "settings.edit",
 ] as const;
 
@@ -51,6 +53,7 @@ const ROLE_PERMISSIONS: Record<string, readonly Permission[]> = {
     "maintenance.view",
     "maintenance.edit",
     "inspections.view",
+    "access.view",
   ],
   // Fastighetsskötare: ärenden, fastigheter, bokningar, besiktningar och
   // entreprenörer.
@@ -65,6 +68,8 @@ const ROLE_PERMISSIONS: Record<string, readonly Permission[]> = {
     "maintenance.view",
     "inspections.view",
     "inspections.edit",
+    "access.view",
+    "access.edit",
   ],
 };
 

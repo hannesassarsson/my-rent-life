@@ -7,9 +7,17 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import { requirePermission } from "@/lib/app.functions";
-import { BILLING_INTERVALS, PLAN_IDS, billableUnits, type PlanId } from "@/lib/plans";
+import {
+  ADDON_IDS,
+  BILLING_INTERVALS,
+  PLAN_IDS,
+  billableUnits,
+  extraAddons,
+  type PlanId,
+} from "@/lib/plans";
 import {
   billingDataFrom,
+  ensureAddonPrice,
   ensurePortalConfiguration,
   ensurePrice,
   ensureVatRate,
@@ -43,23 +51,30 @@ function inCurrentMode(sub: Subscription | null) {
   return !!sub && sub.stripe_mode === stripeMode();
 }
 
+/** Önskat antal per rad: grundpaketet har ett lägsta antal, tilläggen följer lägenheterna. */
+function wantedQuantity(item: Stripe.SubscriptionItem, plan: PlanId | undefined, units: number) {
+  if (item.price.metadata?.["plan"] && plan) return billableUnits(plan, units);
+  return Math.max(1, units);
+}
+
 /** Hämtar abonnemanget från Stripe och sparar det; håller antalet lägenheter i fas. */
 async function syncFromStripe(orgId: string, sub: Subscription, units: number) {
   if (!inCurrentMode(sub) || !sub.stripe_subscription_id) return;
   const stripe = getStripe();
   let remote = await stripe.subscriptions.retrieve(sub.stripe_subscription_id);
-  const item = remote.items.data[0];
   const plan = billingDataFrom(remote).plan;
-  const wanted = plan ? billableUnits(plan, units) : null;
   // Ändrat antal lägenheter debiteras från nästa period.
-  if (
-    item &&
-    wanted &&
-    item.quantity !== wanted &&
-    ["active", "trialing", "past_due"].includes(remote.status)
-  ) {
+  const changes = remote.items.data
+    .map((item) => ({
+      id: item.id,
+      quantity: wantedQuantity(item, plan, units),
+      was: item.quantity,
+    }))
+    .filter((c) => c.quantity !== c.was)
+    .map(({ id, quantity }) => ({ id, quantity }));
+  if (changes.length > 0 && ["active", "trialing", "past_due"].includes(remote.status)) {
     remote = await stripe.subscriptions.update(remote.id, {
-      items: [{ id: item.id, quantity: wanted }],
+      items: changes,
       proration_behavior: "none",
     });
   }
@@ -103,6 +118,7 @@ export const getBilling = createServerFn({ method: "GET" })
             cancelAtPeriodEnd: current.cancel_at_period_end,
             pastDueSince: current.past_due_since,
             unitsBilled: current.units_billed,
+            addons: current.addons ?? [],
             isDemo: current.is_demo,
             invoiceBilling: current.invoice_billing,
             hasStripeSubscription: inCurrentMode(current) && !!current.stripe_subscription_id,
@@ -118,6 +134,7 @@ export const getBilling = createServerFn({ method: "GET" })
 const checkoutSchema = z.object({
   plan: z.enum(PLAN_IDS),
   interval: z.enum(BILLING_INTERVALS),
+  addons: z.array(z.enum(ADDON_IDS)).max(ADDON_IDS.length).default([]),
 });
 
 /**
@@ -133,20 +150,47 @@ export const startCheckout = createServerFn({ method: "POST" })
     const { subscription: sub, units } = await loadBilling(supabase, orgId);
     if (sub?.is_demo) throw new Error("Demoföreningen kan inte teckna abonnemang.");
     const stripe = getStripe();
-    const [price, vat] = await Promise.all([
+    const extras = extraAddons(data.plan, data.addons);
+    const [price, vat, ...addonPrices] = await Promise.all([
       ensurePrice(stripe, data.plan, data.interval),
       ensureVatRate(stripe),
+      ...extras.map((a) => ensureAddonPrice(stripe, a, data.interval)),
     ]);
-    const quantity = billableUnits(data.plan, units);
+    // Grundpaketet med lägsta antal, tilläggen per lägenhet.
+    const wanted = [
+      { price: price.id, quantity: billableUnits(data.plan, units) },
+      ...addonPrices.map((p) => ({ price: p.id, quantity: Math.max(1, units) })),
+    ];
+    const metadata = { organization_id: orgId, plan: data.plan, addons: extras.join(",") };
 
-    // Befintligt abonnemang: byt pris i stället för att starta ett nytt.
+    // Befintligt abonnemang: byt rader i stället för att starta ett nytt.
     if (sub && inCurrentMode(sub) && sub.stripe_subscription_id) {
       const remote = await stripe.subscriptions.retrieve(sub.stripe_subscription_id);
-      const item = remote.items.data[0];
-      if (item && !["canceled", "incomplete_expired"].includes(remote.status)) {
+      if (
+        remote.items.data.length > 0 &&
+        !["canceled", "incomplete_expired"].includes(remote.status)
+      ) {
+        const existing = remote.items.data;
+        const base = existing.find((i) => i.price.metadata?.["plan"]) ?? existing[0]!;
+        const items: Stripe.SubscriptionUpdateParams.Item[] = [
+          { id: base.id, price: price.id, quantity: wanted[0]!.quantity },
+        ];
+        for (const [idx, p] of addonPrices.entries()) {
+          const addonId = p.metadata?.["addon"];
+          const match = existing.find(
+            (i) => i.id !== base.id && i.price.metadata?.["addon"] === addonId,
+          );
+          const quantity = wanted[idx + 1]!.quantity;
+          items.push(match ? { id: match.id, price: p.id, quantity } : { price: p.id, quantity });
+        }
+        // Tillägg som valts bort, eller som nu ingår i planen, tas bort.
+        for (const i of existing) {
+          if (i.id === base.id) continue;
+          if (!items.some((x) => x.id === i.id)) items.push({ id: i.id, deleted: true });
+        }
         const updated = await stripe.subscriptions.update(remote.id, {
-          items: [{ id: item.id, price: price.id, quantity }],
-          metadata: { organization_id: orgId, plan: data.plan },
+          items,
+          metadata,
           proration_behavior: "create_prorations",
           cancel_at_period_end: false,
         });
@@ -182,13 +226,13 @@ export const startCheckout = createServerFn({ method: "POST" })
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
-      line_items: [{ price: price.id, quantity }],
+      line_items: wanted,
       subscription_data: {
         default_tax_rates: [vat.id],
-        metadata: { organization_id: orgId, plan: data.plan },
+        metadata,
         ...(keepTrial ? { trial_end: trialEnd } : {}),
       },
-      metadata: { organization_id: orgId, plan: data.plan },
+      metadata,
       client_reference_id: orgId,
       locale: "sv",
       // Alltid kronor: ingen växling till kundens lokala valuta.

@@ -30,6 +30,7 @@ import { Route as AuthenticatedAdminInstallningarRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminKommunikationRouteImport } from './routes/_authenticated/admin.kommunikation'
 import { Route as AuthenticatedAdminMeddelandenRouteImport } from './routes/_authenticated/admin.meddelanden'
 import { Route as AuthenticatedAdminMotenRouteImport } from './routes/_authenticated/admin.moten'
+import { Route as AuthenticatedAdminPassersystemRouteImport } from './routes/_authenticated/admin.passersystem'
 import { Route as AuthenticatedAdminUnderhallRouteImport } from './routes/_authenticated/admin.underhall'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppBoendeRouteImport } from './routes/_authenticated/app.boende'
@@ -39,8 +40,10 @@ import { Route as AuthenticatedAppEkonomiRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAppInformationRouteImport } from './routes/_authenticated/app.information'
 import { Route as AuthenticatedAppMeddelandenRouteImport } from './routes/_authenticated/app.meddelanden'
 import { Route as AuthenticatedAppMotenRouteImport } from './routes/_authenticated/app.moten'
+import { Route as AuthenticatedAppNycklarRouteImport } from './routes/_authenticated/app.nycklar'
 import { Route as AuthenticatedEntreprenorIndexRouteImport } from './routes/_authenticated/entreprenor.index'
 import { Route as AuthenticatedEntreprenorIdRouteImport } from './routes/_authenticated/entreprenor.$id'
+import { Route as AuthenticatedNDoorIdRouteImport } from './routes/_authenticated/n.$doorId'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhook'
 import { Route as AuthenticatedAdminArendenIndexRouteImport } from './routes/_authenticated/admin.arenden.index'
 import { Route as AuthenticatedAdminArendenIdRouteImport } from './routes/_authenticated/admin.arenden.$id'
@@ -164,6 +167,12 @@ const AuthenticatedAdminMotenRoute = AuthenticatedAdminMotenRouteImport.update({
   path: '/moten',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminPassersystemRoute =
+  AuthenticatedAdminPassersystemRouteImport.update({
+    id: '/passersystem',
+    path: '/passersystem',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminUnderhallRoute =
   AuthenticatedAdminUnderhallRouteImport.update({
     id: '/underhall',
@@ -214,6 +223,11 @@ const AuthenticatedAppMotenRoute = AuthenticatedAppMotenRouteImport.update({
   path: '/moten',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppNycklarRoute = AuthenticatedAppNycklarRouteImport.update({
+  id: '/nycklar',
+  path: '/nycklar',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedEntreprenorIndexRoute =
   AuthenticatedEntreprenorIndexRouteImport.update({
     id: '/',
@@ -226,6 +240,11 @@ const AuthenticatedEntreprenorIdRoute =
     path: '/$id',
     getParentRoute: () => AuthenticatedEntreprenorRoute,
   } as any)
+const AuthenticatedNDoorIdRoute = AuthenticatedNDoorIdRouteImport.update({
+  id: '/n/$doorId',
+  path: '/n/$doorId',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   id: '/api/stripe/webhook',
   path: '/api/stripe/webhook',
@@ -288,6 +307,7 @@ export interface FileRoutesByFullPath {
   '/admin/kommunikation': typeof AuthenticatedAdminKommunikationRoute
   '/admin/meddelanden': typeof AuthenticatedAdminMeddelandenRoute
   '/admin/moten': typeof AuthenticatedAdminMotenRoute
+  '/admin/passersystem': typeof AuthenticatedAdminPassersystemRoute
   '/admin/underhall': typeof AuthenticatedAdminUnderhallRoute
   '/app/boende': typeof AuthenticatedAppBoendeRoute
   '/app/bokningar': typeof AuthenticatedAppBokningarRoute
@@ -296,7 +316,9 @@ export interface FileRoutesByFullPath {
   '/app/information': typeof AuthenticatedAppInformationRoute
   '/app/meddelanden': typeof AuthenticatedAppMeddelandenRoute
   '/app/moten': typeof AuthenticatedAppMotenRoute
+  '/app/nycklar': typeof AuthenticatedAppNycklarRoute
   '/entreprenor/$id': typeof AuthenticatedEntreprenorIdRoute
+  '/n/$doorId': typeof AuthenticatedNDoorIdRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
@@ -325,6 +347,7 @@ export interface FileRoutesByTo {
   '/admin/kommunikation': typeof AuthenticatedAdminKommunikationRoute
   '/admin/meddelanden': typeof AuthenticatedAdminMeddelandenRoute
   '/admin/moten': typeof AuthenticatedAdminMotenRoute
+  '/admin/passersystem': typeof AuthenticatedAdminPassersystemRoute
   '/admin/underhall': typeof AuthenticatedAdminUnderhallRoute
   '/app/boende': typeof AuthenticatedAppBoendeRoute
   '/app/bokningar': typeof AuthenticatedAppBokningarRoute
@@ -333,7 +356,9 @@ export interface FileRoutesByTo {
   '/app/information': typeof AuthenticatedAppInformationRoute
   '/app/meddelanden': typeof AuthenticatedAppMeddelandenRoute
   '/app/moten': typeof AuthenticatedAppMotenRoute
+  '/app/nycklar': typeof AuthenticatedAppNycklarRoute
   '/entreprenor/$id': typeof AuthenticatedEntreprenorIdRoute
+  '/n/$doorId': typeof AuthenticatedNDoorIdRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
@@ -367,6 +392,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/kommunikation': typeof AuthenticatedAdminKommunikationRoute
   '/_authenticated/admin/meddelanden': typeof AuthenticatedAdminMeddelandenRoute
   '/_authenticated/admin/moten': typeof AuthenticatedAdminMotenRoute
+  '/_authenticated/admin/passersystem': typeof AuthenticatedAdminPassersystemRoute
   '/_authenticated/admin/underhall': typeof AuthenticatedAdminUnderhallRoute
   '/_authenticated/app/boende': typeof AuthenticatedAppBoendeRoute
   '/_authenticated/app/bokningar': typeof AuthenticatedAppBokningarRoute
@@ -375,7 +401,9 @@ export interface FileRoutesById {
   '/_authenticated/app/information': typeof AuthenticatedAppInformationRoute
   '/_authenticated/app/meddelanden': typeof AuthenticatedAppMeddelandenRoute
   '/_authenticated/app/moten': typeof AuthenticatedAppMotenRoute
+  '/_authenticated/app/nycklar': typeof AuthenticatedAppNycklarRoute
   '/_authenticated/entreprenor/$id': typeof AuthenticatedEntreprenorIdRoute
+  '/_authenticated/n/$doorId': typeof AuthenticatedNDoorIdRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
@@ -409,6 +437,7 @@ export interface FileRouteTypes {
     | '/admin/kommunikation'
     | '/admin/meddelanden'
     | '/admin/moten'
+    | '/admin/passersystem'
     | '/admin/underhall'
     | '/app/boende'
     | '/app/bokningar'
@@ -417,7 +446,9 @@ export interface FileRouteTypes {
     | '/app/information'
     | '/app/meddelanden'
     | '/app/moten'
+    | '/app/nycklar'
     | '/entreprenor/$id'
+    | '/n/$doorId'
     | '/api/stripe/webhook'
     | '/admin/'
     | '/app/'
@@ -446,6 +477,7 @@ export interface FileRouteTypes {
     | '/admin/kommunikation'
     | '/admin/meddelanden'
     | '/admin/moten'
+    | '/admin/passersystem'
     | '/admin/underhall'
     | '/app/boende'
     | '/app/bokningar'
@@ -454,7 +486,9 @@ export interface FileRouteTypes {
     | '/app/information'
     | '/app/meddelanden'
     | '/app/moten'
+    | '/app/nycklar'
     | '/entreprenor/$id'
+    | '/n/$doorId'
     | '/api/stripe/webhook'
     | '/admin'
     | '/app'
@@ -487,6 +521,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/kommunikation'
     | '/_authenticated/admin/meddelanden'
     | '/_authenticated/admin/moten'
+    | '/_authenticated/admin/passersystem'
     | '/_authenticated/admin/underhall'
     | '/_authenticated/app/boende'
     | '/_authenticated/app/bokningar'
@@ -495,7 +530,9 @@ export interface FileRouteTypes {
     | '/_authenticated/app/information'
     | '/_authenticated/app/meddelanden'
     | '/_authenticated/app/moten'
+    | '/_authenticated/app/nycklar'
     | '/_authenticated/entreprenor/$id'
+    | '/_authenticated/n/$doorId'
     | '/api/stripe/webhook'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
@@ -667,6 +704,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminMotenRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/passersystem': {
+      id: '/_authenticated/admin/passersystem'
+      path: '/passersystem'
+      fullPath: '/admin/passersystem'
+      preLoaderRoute: typeof AuthenticatedAdminPassersystemRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/underhall': {
       id: '/_authenticated/admin/underhall'
       path: '/underhall'
@@ -730,6 +774,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppMotenRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/nycklar': {
+      id: '/_authenticated/app/nycklar'
+      path: '/nycklar'
+      fullPath: '/app/nycklar'
+      preLoaderRoute: typeof AuthenticatedAppNycklarRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/entreprenor/': {
       id: '/_authenticated/entreprenor/'
       path: '/'
@@ -743,6 +794,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/entreprenor/$id'
       preLoaderRoute: typeof AuthenticatedEntreprenorIdRouteImport
       parentRoute: typeof AuthenticatedEntreprenorRoute
+    }
+    '/_authenticated/n/$doorId': {
+      id: '/_authenticated/n/$doorId'
+      path: '/n/$doorId'
+      fullPath: '/n/$doorId'
+      preLoaderRoute: typeof AuthenticatedNDoorIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/stripe/webhook': {
       id: '/api/stripe/webhook'
@@ -808,6 +866,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminKommunikationRoute: typeof AuthenticatedAdminKommunikationRoute
   AuthenticatedAdminMeddelandenRoute: typeof AuthenticatedAdminMeddelandenRoute
   AuthenticatedAdminMotenRoute: typeof AuthenticatedAdminMotenRoute
+  AuthenticatedAdminPassersystemRoute: typeof AuthenticatedAdminPassersystemRoute
   AuthenticatedAdminUnderhallRoute: typeof AuthenticatedAdminUnderhallRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminArendenIdRoute: typeof AuthenticatedAdminArendenIdRoute
@@ -828,6 +887,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminKommunikationRoute: AuthenticatedAdminKommunikationRoute,
   AuthenticatedAdminMeddelandenRoute: AuthenticatedAdminMeddelandenRoute,
   AuthenticatedAdminMotenRoute: AuthenticatedAdminMotenRoute,
+  AuthenticatedAdminPassersystemRoute: AuthenticatedAdminPassersystemRoute,
   AuthenticatedAdminUnderhallRoute: AuthenticatedAdminUnderhallRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminArendenIdRoute: AuthenticatedAdminArendenIdRoute,
@@ -847,6 +907,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppInformationRoute: typeof AuthenticatedAppInformationRoute
   AuthenticatedAppMeddelandenRoute: typeof AuthenticatedAppMeddelandenRoute
   AuthenticatedAppMotenRoute: typeof AuthenticatedAppMotenRoute
+  AuthenticatedAppNycklarRoute: typeof AuthenticatedAppNycklarRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
   AuthenticatedAppFelanmalanIdRoute: typeof AuthenticatedAppFelanmalanIdRoute
   AuthenticatedAppFelanmalanIndexRoute: typeof AuthenticatedAppFelanmalanIndexRoute
@@ -860,6 +921,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppInformationRoute: AuthenticatedAppInformationRoute,
   AuthenticatedAppMeddelandenRoute: AuthenticatedAppMeddelandenRoute,
   AuthenticatedAppMotenRoute: AuthenticatedAppMotenRoute,
+  AuthenticatedAppNycklarRoute: AuthenticatedAppNycklarRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
   AuthenticatedAppFelanmalanIdRoute: AuthenticatedAppFelanmalanIdRoute,
   AuthenticatedAppFelanmalanIndexRoute: AuthenticatedAppFelanmalanIndexRoute,
@@ -888,12 +950,14 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
   AuthenticatedEntreprenorRoute: typeof AuthenticatedEntreprenorRouteWithChildren
+  AuthenticatedNDoorIdRoute: typeof AuthenticatedNDoorIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
   AuthenticatedEntreprenorRoute: AuthenticatedEntreprenorRouteWithChildren,
+  AuthenticatedNDoorIdRoute: AuthenticatedNDoorIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

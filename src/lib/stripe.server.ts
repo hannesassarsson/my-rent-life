@@ -14,8 +14,11 @@ import { createClient } from "@supabase/supabase-js";
 
 import type { Database, Json } from "@/integrations/supabase/types";
 import {
+  ADDON_IDS,
+  ADDONS,
   PLAN_IDS,
   PLANS,
+  type AddonId,
   YEARLY_MONTHS_CHARGED,
   type BillingInterval,
   type PlanId,
@@ -49,30 +52,56 @@ export function getStripe(): Stripe {
 
 /* ------------------------------ PRISER ------------------------------ */
 
-const lookupKey = (plan: PlanId, interval: BillingInterval) => `bp_${plan}_${interval}_v1`;
+type CatalogItem = {
+  productId: string;
+  name: string;
+  description: string;
+  /** Kronor per lägenhet och månad */
+  perUnit: number;
+  metadata: Record<string, string>;
+};
 
-async function ensureProduct(stripe: Stripe, plan: PlanId) {
-  const id = `bp_${plan}`;
+function catalogItem(kind: "plan" | "addon", id: string): CatalogItem {
+  if (kind === "plan") {
+    const plan = PLANS[id as PlanId];
+    return {
+      productId: `bp_${plan.id}`,
+      name: `Boendeplattformen ${plan.name}`,
+      description: `${plan.tagline}. Pris per lägenhet.`,
+      perUnit: plan.perUnit,
+      metadata: { plan: plan.id },
+    };
+  }
+  const addon = ADDONS[id as AddonId];
+  return {
+    productId: `bp_addon_${addon.id}`,
+    name: `Tillägg: ${addon.name}`,
+    description: `${addon.description}. Pris per lägenhet.`,
+    perUnit: addon.perUnit,
+    metadata: { addon: addon.id },
+  };
+}
+
+async function ensureProduct(stripe: Stripe, item: CatalogItem) {
   try {
-    return await stripe.products.retrieve(id);
+    return await stripe.products.retrieve(item.productId);
   } catch (e) {
     if ((e as { code?: string }).code !== "resource_missing") throw e;
     return stripe.products.create({
-      id,
-      name: `Boendeplattformen ${PLANS[plan].name}`,
-      description: `${PLANS[plan].tagline}. Pris per lägenhet.`,
-      metadata: { plan },
+      id: item.productId,
+      name: item.name,
+      description: item.description,
+      metadata: item.metadata,
     });
   }
 }
 
-/** Priset per lägenhet för en plan och betalperiod, skapas vid behov. */
-export async function ensurePrice(stripe: Stripe, plan: PlanId, interval: BillingInterval) {
-  const key = lookupKey(plan, interval);
+async function ensureCatalogPrice(stripe: Stripe, item: CatalogItem, interval: BillingInterval) {
+  const key = `${item.productId}_${interval}_v1`;
   const found = await stripe.prices.list({ lookup_keys: [key], active: true, limit: 1 });
   if (found.data[0]) return found.data[0];
-  const product = await ensureProduct(stripe, plan);
-  const perMonth = PLANS[plan].perUnit * 100;
+  const product = await ensureProduct(stripe, item);
+  const perMonth = item.perUnit * 100;
   return stripe.prices.create({
     product: product.id,
     currency: "sek",
@@ -80,9 +109,19 @@ export async function ensurePrice(stripe: Stripe, plan: PlanId, interval: Billin
     recurring: { interval },
     tax_behavior: "exclusive",
     lookup_key: key,
-    nickname: `${PLANS[plan].name} per lägenhet (${interval === "year" ? "år" : "månad"})`,
-    metadata: { plan, interval },
+    nickname: `${item.name} per lägenhet (${interval === "year" ? "år" : "månad"})`,
+    metadata: { ...item.metadata, interval },
   });
+}
+
+/** Priset per lägenhet för en plan och betalperiod, skapas vid behov. */
+export function ensurePrice(stripe: Stripe, plan: PlanId, interval: BillingInterval) {
+  return ensureCatalogPrice(stripe, catalogItem("plan", plan), interval);
+}
+
+/** Priset per lägenhet för ett tillägg och betalperiod, skapas vid behov. */
+export function ensureAddonPrice(stripe: Stripe, addon: AddonId, interval: BillingInterval) {
+  return ensureCatalogPrice(stripe, catalogItem("addon", addon), interval);
 }
 
 /** Svensk moms 25 %, skapas en gång. */
@@ -127,6 +166,7 @@ export type BillingData = {
   current_period_end?: string | null;
   cancel_at_period_end?: boolean;
   units_billed?: number;
+  addons?: AddonId[];
   stripe_mode?: StripeMode;
   stripe_customer_id?: string;
   stripe_subscription_id?: string | null;
@@ -137,21 +177,27 @@ const iso = (unix: number | null | undefined) =>
 
 /** Stripes abonnemang översatt till raden i subscriptions. */
 export function billingDataFrom(sub: Stripe.Subscription): BillingData {
-  const item = sub.items.data[0];
+  const items = sub.items.data;
+  // Grundpaketet är raden vars pris hör till en plan; övriga rader är tillägg.
+  const base = items.find((i) => i.price.metadata?.["plan"]) ?? items[0];
   const metaPlan = sub.metadata?.["plan"];
-  const pricePlan = item?.price.metadata?.["plan"];
-  const plan = [metaPlan, pricePlan].find((p): p is PlanId =>
+  const pricePlan = base?.price.metadata?.["plan"];
+  const plan = [pricePlan, metaPlan].find((p): p is PlanId =>
     (PLAN_IDS as readonly string[]).includes(p ?? ""),
   );
-  const interval = item?.price.recurring?.interval;
+  const addons = items
+    .map((i) => i.price.metadata?.["addon"])
+    .filter((a): a is AddonId => (ADDON_IDS as readonly string[]).includes(a ?? ""));
+  const interval = base?.price.recurring?.interval;
   return {
     ...(plan ? { plan } : {}),
     status: sub.status,
     ...(interval === "month" || interval === "year" ? { billing_interval: interval } : {}),
     trial_ends_at: iso(sub.trial_end),
-    current_period_end: iso(item?.current_period_end),
+    current_period_end: iso(base?.current_period_end),
     cancel_at_period_end: sub.cancel_at_period_end || !!sub.cancel_at,
-    ...(item?.quantity ? { units_billed: item.quantity } : {}),
+    ...(base?.quantity ? { units_billed: base.quantity } : {}),
+    addons,
     stripe_mode: sub.livemode ? "live" : "test",
     stripe_customer_id: typeof sub.customer === "string" ? sub.customer : sub.customer.id,
     stripe_subscription_id: sub.id,

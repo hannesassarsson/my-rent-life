@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,16 @@ const DEMO_ROLES: { kind: DemoKind; label: string; description: string; to: stri
   },
 ];
 
+/** Bara adresser inom appen, så att inloggningen inte kan skicka vidare till andra sajter. */
+const localPath = z
+  .string()
+  .regex(/^\/(?!\/)/)
+  .max(500)
+  .optional()
+  .catch(undefined);
+
 export const Route = createFileRoute("/auth")({
+  validateSearch: z.object({ redirect: localPath }),
   head: () => ({
     meta: [
       { title: "Logga in – Boendeplattformen" },
@@ -49,6 +59,11 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
+  const { redirect } = Route.useSearch();
+  const goHome = (fallback: string) =>
+    redirect
+      ? navigate({ href: redirect, replace: true })
+      : navigate({ to: fallback, replace: true });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -71,9 +86,10 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/app", replace: true });
+      if (data.session) void goHome("/app");
     });
-  }, [navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -81,7 +97,7 @@ function AuthPage() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      navigate({ to: "/app", replace: true });
+      void goHome("/app");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Något gick fel");
     } finally {
@@ -98,7 +114,7 @@ function AuthPage() {
         refresh_token: session.refreshToken,
       });
       if (error) throw error;
-      navigate({ to: DEMO_ROLES.find((r) => r.kind === kind)?.to ?? "/app", replace: true });
+      void goHome(DEMO_ROLES.find((r) => r.kind === kind)?.to ?? "/app");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Kunde inte starta demon");
     } finally {

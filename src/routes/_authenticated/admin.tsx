@@ -15,6 +15,7 @@ import {
   FileText,
   ClipboardCheck,
   CreditCard,
+  DoorOpen,
 } from "lucide-react";
 
 import { AppShell, type NavItem } from "@/components/app-shell";
@@ -62,6 +63,12 @@ const items: NavItem[] = [
     to: "/admin/besiktningar",
     icon: ClipboardCheck,
     permission: "inspections.view",
+  },
+  {
+    label: "Passersystem",
+    to: "/admin/passersystem",
+    icon: DoorOpen,
+    permission: "access.view",
   },
   { label: "Underhållsplan", to: "/admin/underhall", icon: Hammer, permission: "maintenance.view" },
   {

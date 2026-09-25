@@ -1,5 +1,9 @@
-// Planer, priser och vad som ingår. Delas av servern (spärrar, Stripe) och
-// gränssnittet (prissidan, abonnemangssidan, menyn).
+// Planer, tillägg, priser och vad som ingår. Delas av servern (spärrar,
+// Stripe) och gränssnittet (prissidan, abonnemangssidan, menyn).
+//
+// Priset byggs av ett grundpaket per lägenhet plus de tillägg man väljer.
+// Standard och Förvaltning är paket där de vanligaste tilläggen ingår till
+// ett lägre pris än om de köps var för sig.
 
 import type { Permission } from "@/lib/permissions";
 
@@ -9,8 +13,59 @@ export type PlanId = (typeof PLAN_IDS)[number];
 export const BILLING_INTERVALS = ["month", "year"] as const;
 export type BillingInterval = (typeof BILLING_INTERVALS)[number];
 
-/** Funktioner som skiljer planerna åt. Allt annat ingår i alla planer. */
-export type Feature = "economy" | "meetings" | "inspections" | "maintenance" | "contractors";
+/** Funktioner som kräver ett tillägg. Allt annat ingår i alla planer. */
+export type Feature =
+  "economy" | "meetings" | "inspections" | "maintenance" | "contractors" | "keys";
+
+export const ADDON_IDS = ["economy", "meetings", "property_care", "contractors", "keys"] as const;
+export type AddonId = (typeof ADDON_IDS)[number];
+
+export type Addon = {
+  id: AddonId;
+  name: string;
+  description: string;
+  /** Kronor per lägenhet och månad, exklusive moms */
+  perUnit: number;
+  features: readonly Feature[];
+};
+
+export const ADDONS: Record<AddonId, Addon> = {
+  economy: {
+    id: "economy",
+    name: "Ekonomi",
+    description: "Avisering av avgifter och hyror, påminnelser, betalstatus och export",
+    perUnit: 4,
+    features: ["economy"],
+  },
+  meetings: {
+    id: "meetings",
+    name: "Möten och stämmor",
+    description: "Kallelser, anmälan, dagordning, motioner och protokoll",
+    perUnit: 2,
+    features: ["meetings"],
+  },
+  property_care: {
+    id: "property_care",
+    name: "Besiktningar och underhåll",
+    description: "Planera och protokollföra besiktningar, underhållsplan",
+    perUnit: 3,
+    features: ["inspections", "maintenance"],
+  },
+  contractors: {
+    id: "contractors",
+    name: "Entreprenörsportal",
+    description: "Entreprenörer tar emot, bokar och klarmarkerar ärenden själva",
+    perUnit: 2,
+    features: ["contractors"],
+  },
+  keys: {
+    id: "keys",
+    name: "Digitala nycklar",
+    description: "Lås upp portar och gemensamma utrymmen med mobilen (NFC). Läsare tillkommer.",
+    perUnit: 6,
+    features: ["keys"],
+  },
+};
 
 export type Plan = {
   id: PlanId;
@@ -18,28 +73,23 @@ export type Plan = {
   tagline: string;
   /** Kronor per lägenhet och månad, exklusive moms */
   perUnit: number;
-  /** Lägsta pris per månad, exklusive moms */
+  /** Lägsta pris per månad för grundpaketet, exklusive moms */
   minMonthly: number;
-  features: readonly Feature[];
+  /** Tillägg som ingår i paketet */
+  included: readonly AddonId[];
   highlights: readonly string[];
 };
 
-const ALL_FEATURES: readonly Feature[] = [
-  "economy",
-  "meetings",
-  "inspections",
-  "maintenance",
-  "contractors",
-];
+const PACKAGE_ADDONS: readonly AddonId[] = ["economy", "meetings", "property_care", "contractors"];
 
 export const PLANS: Record<PlanId, Plan> = {
   bas: {
     id: "bas",
     name: "Bas",
-    tagline: "För mindre föreningar som vill komma igång",
+    tagline: "Grundpaketet – lägg till det ni behöver",
     perUnit: 9,
     minMonthly: 199,
-    features: [],
+    included: [],
     highlights: [
       "Boendeapp för alla boende",
       "Felanmälan med bilder och status",
@@ -53,7 +103,7 @@ export const PLANS: Record<PlanId, Plan> = {
     tagline: "Hela plattformen för föreningen eller hyresvärden",
     perUnit: 15,
     minMonthly: 399,
-    features: ALL_FEATURES,
+    included: PACKAGE_ADDONS,
     highlights: [
       "Allt i Bas",
       "Ekonomi: avisering, påminnelser och export",
@@ -68,7 +118,7 @@ export const PLANS: Record<PlanId, Plan> = {
     tagline: "För förvaltare och hyresvärdar med flera fastigheter",
     perUnit: 22,
     minMonthly: 1490,
-    features: ALL_FEATURES,
+    included: PACKAGE_ADDONS,
     highlights: [
       "Allt i Standard",
       "Flera organisationer i samma konto",
@@ -87,18 +137,42 @@ export const TRIAL_DAYS = 30;
 export const GRACE_DAYS = 14;
 
 /**
- * Antalet lägenheter som debiteras: minst så många att lägsta priset nås.
- * Stripe räknar pris × antal, så lägsta priset uttrycks som ett lägsta antal.
+ * Antalet lägenheter som debiteras för grundpaketet: minst så många att
+ * lägsta priset nås. Stripe räknar pris × antal, så lägsta priset uttrycks
+ * som ett lägsta antal.
  */
 export function billableUnits(plan: PlanId, units: number) {
   const p = PLANS[plan];
   return Math.max(units, Math.ceil(p.minMonthly / p.perUnit));
 }
 
+/** Tillägg som går att köpa till en plan (de som inte redan ingår). */
+export function extraAddons(plan: PlanId, addons: readonly string[]): AddonId[] {
+  return ADDON_IDS.filter((a) => addons.includes(a) && !PLANS[plan].included.includes(a));
+}
+
 /** Pris i kronor exklusive moms för en månad eller ett år. */
-export function priceFor(plan: PlanId, units: number, interval: BillingInterval) {
-  const monthly = billableUnits(plan, units) * PLANS[plan].perUnit;
+export function priceFor(
+  plan: PlanId,
+  units: number,
+  interval: BillingInterval,
+  addons: readonly string[] = [],
+) {
+  const base = billableUnits(plan, units) * PLANS[plan].perUnit;
+  const extras = extraAddons(plan, addons).reduce((sum, a) => sum + ADDONS[a].perUnit * units, 0);
+  const monthly = base + extras;
   return interval === "year" ? monthly * YEARLY_MONTHS_CHARGED : monthly;
+}
+
+/** Funktionerna som en plan med tillägg ger. */
+export function featuresFor(plan: PlanId, addons: readonly string[] = []): Feature[] {
+  const set = new Set<Feature>();
+  for (const a of ADDON_IDS) {
+    if (PLANS[plan].included.includes(a) || addons.includes(a)) {
+      for (const f of ADDONS[a].features) set.add(f);
+    }
+  }
+  return [...set];
 }
 
 /** Vilken planfunktion en behörighet hör till. */
@@ -112,6 +186,8 @@ const PERMISSION_FEATURE: Partial<Record<Permission, Feature>> = {
   "maintenance.edit": "maintenance",
   "contractors.view": "contractors",
   "contractors.edit": "contractors",
+  "access.view": "keys",
+  "access.edit": "keys",
 };
 
 export function featureFor(permission: Permission): Feature | undefined {
@@ -125,6 +201,7 @@ export type SubscriptionRow = {
   past_due_since: string | null;
   is_demo: boolean;
   invoice_billing: boolean;
+  addons?: string[] | null;
 };
 
 /**
@@ -146,10 +223,11 @@ export function accessFor(
   const plan = (PLAN_IDS as readonly string[]).includes(sub?.plan ?? "")
     ? (sub!.plan as PlanId)
     : "standard";
-  const features = [...PLANS[plan].features];
-  // Organisationer utan abonnemangsrad (skapade före betalningen) och
-  // demoföreningen spärras aldrig.
-  if (!sub || sub.is_demo) return { plan, state: "ok", features };
+  // Demoföreningen visar allt, även tillägg som inte ingår i någon plan.
+  if (sub?.is_demo) return { plan, state: "ok", features: featuresFor(plan, [...ADDON_IDS]) };
+  const features = featuresFor(plan, sub?.addons ?? []);
+  // Organisationer utan abonnemangsrad (skapade före betalningen) spärras aldrig.
+  if (!sub) return { plan, state: "ok", features };
   if (sub.invoice_billing) return { plan, state: "ok", features };
 
   let state: AccessState;
