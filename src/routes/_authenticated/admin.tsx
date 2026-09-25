@@ -15,16 +15,36 @@ import {
 import { AppShell, type NavItem } from "@/components/app-shell";
 
 const items: NavItem[] = [
-  { label: "Översikt", to: "/admin", icon: LayoutDashboard },
-  { label: "Ärenden", to: "/admin/arenden", icon: Wrench },
-  { label: "Fastigheter", to: "/admin/fastigheter", icon: Building2 },
-  { label: "Boende", to: "/admin/boende", icon: Users },
-  { label: "Ekonomi", to: "/admin/ekonomi", icon: Wallet },
-  { label: "Bokningar", to: "/admin/bokningar", icon: CalendarCheck },
-  { label: "Kommunikation", to: "/admin/kommunikation", icon: Megaphone },
-  { label: "Entreprenörer", to: "/admin/entreprenorer", icon: HardHat },
-  { label: "Underhållsplan", to: "/admin/underhall", icon: Hammer },
-  { label: "Inställningar", to: "/admin/installningar", icon: Settings },
+  { label: "Översikt", to: "/admin", icon: LayoutDashboard, permission: "overview" },
+  { label: "Ärenden", to: "/admin/arenden", icon: Wrench, permission: "requests.view" },
+  {
+    label: "Fastigheter",
+    to: "/admin/fastigheter",
+    icon: Building2,
+    permission: "properties.view",
+  },
+  { label: "Boende", to: "/admin/boende", icon: Users, permission: "residents.view" },
+  { label: "Ekonomi", to: "/admin/ekonomi", icon: Wallet, permission: "economy.view" },
+  { label: "Bokningar", to: "/admin/bokningar", icon: CalendarCheck, permission: "bookings.edit" },
+  {
+    label: "Kommunikation",
+    to: "/admin/kommunikation",
+    icon: Megaphone,
+    permission: "communication.edit",
+  },
+  {
+    label: "Entreprenörer",
+    to: "/admin/entreprenorer",
+    icon: HardHat,
+    permission: "contractors.view",
+  },
+  { label: "Underhållsplan", to: "/admin/underhall", icon: Hammer, permission: "maintenance.view" },
+  {
+    label: "Inställningar",
+    to: "/admin/installningar",
+    icon: Settings,
+    permission: "settings.edit",
+  },
 ];
 
 export const Route = createFileRoute("/_authenticated/admin")({

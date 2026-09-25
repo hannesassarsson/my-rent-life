@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useCan } from "@/lib/use-can";
 
 import { getContractors, saveContractor } from "@/lib/app.functions";
 import { PageHeader, Panel, LoadingBlock, EmptyState } from "@/components/ui-kit";
@@ -45,6 +46,7 @@ const emptyDraft: Draft = {
 
 function AdminContractors() {
   const fn = useServerFn(getContractors);
+  const can = useCan();
   const saveFn = useServerFn(saveContractor);
   const queryClient = useQueryClient();
   const { data, isPending } = useQuery({ queryKey: ["admin-contractors"], queryFn: () => fn() });
@@ -93,9 +95,11 @@ function AdminContractors() {
               if (!v) setDraft(emptyDraft);
             }}
           >
-            <DialogTrigger asChild>
-              <Button>Ny entreprenör</Button>
-            </DialogTrigger>
+            {can("contractors.edit") ? (
+              <DialogTrigger asChild>
+                <Button>Ny entreprenör</Button>
+              </DialogTrigger>
+            ) : null}
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>{draft.id ? "Redigera entreprenör" : "Ny entreprenör"}</DialogTitle>
@@ -189,9 +193,11 @@ function AdminContractors() {
                 <StatusPill tone={openCountFor(c.id) > 0 ? "info" : "neutral"}>
                   {openCountFor(c.id)} pågående
                 </StatusPill>
-                <Button size="sm" variant="outline" onClick={() => edit(c)}>
-                  Redigera
-                </Button>
+                {can("contractors.edit") ? (
+                  <Button size="sm" variant="outline" onClick={() => edit(c)}>
+                    Redigera
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>

@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { addRequestComment, getRequestDetail } from "@/lib/app.functions";
 import { DataRow, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
 import { PriorityBadge, RequestStatusBadge } from "@/components/status-badge";
-import { dateTime } from "@/lib/format";
+import { authorRoleLabel, dateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -107,8 +107,7 @@ function RequestPage() {
                   <p className="text-xs font-medium">
                     {c.author_name}{" "}
                     <span className="text-muted-foreground">
-                      · {c.author_role === "resident" ? "Boende" : "Förvaltning"} ·{" "}
-                      {dateTime(c.created_at)}
+                      · {authorRoleLabel(c.author_role)} · {dateTime(c.created_at)}
                     </span>
                   </p>
                   <p className="mt-1.5 text-sm whitespace-pre-line">{c.body}</p>

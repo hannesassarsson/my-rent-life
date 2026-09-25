@@ -24,14 +24,25 @@ function anonClient() {
   });
 }
 
+/** Demoroll → prefix för miljövariablerna <PREFIX>_EMAIL och <PREFIX>_PASSWORD. */
+const DEMO_KINDS = {
+  resident: "DEMO_RESIDENT",
+  admin: "DEMO_ADMIN",
+  board: "DEMO_BOARD",
+  staff: "DEMO_STAFF",
+  contractor: "DEMO_CONTRACTOR",
+} as const;
+
+export type DemoKind = keyof typeof DEMO_KINDS;
+
 /**
  * Loggar in på ett av demokontona. Uppgifterna finns bara som miljövariabler
  * på servern; klienten får tillbaka en session att använda.
  */
 export const startDemo = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ kind: z.enum(["admin", "resident"]) }))
+  .inputValidator(z.object({ kind: z.enum(Object.keys(DEMO_KINDS) as [DemoKind, ...DemoKind[]]) }))
   .handler(async ({ data }) => {
-    const prefix = data.kind === "admin" ? "DEMO_ADMIN" : "DEMO_RESIDENT";
+    const prefix = DEMO_KINDS[data.kind];
     const email = process.env[`${prefix}_EMAIL`];
     const password = process.env[`${prefix}_PASSWORD`];
     if (!email || !password) throw new Error("Demomiljön är inte tillgänglig just nu.");

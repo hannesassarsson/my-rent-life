@@ -30,16 +30,15 @@ bun run dev        # http://localhost:8080
 
 Lägg dem i `.env` (se befintlig fil):
 
-| Variabel                          | Används av                                     |
-| --------------------------------- | ---------------------------------------------- |
-| `VITE_SUPABASE_URL`               | Klienten (webbläsaren)                         |
-| `VITE_SUPABASE_PUBLISHABLE_KEY`   | Klienten (webbläsaren)                         |
-| `SUPABASE_URL`                    | Servern (SSR och serverfunktioner)             |
-| `SUPABASE_PUBLISHABLE_KEY`        | Servern (SSR och serverfunktioner)             |
-| `SUPABASE_SERVICE_ROLE_KEY`       | Endast `client.server.ts` – aldrig i klienten  |
-| `DATABASE_URL`                    | `drizzle-kit` (migrationer)                    |
-| `DEMO_ADMIN_EMAIL`/`_PASSWORD`    | Servern – knappen "Se demomiljön" (förvaltare) |
-| `DEMO_RESIDENT_EMAIL`/`_PASSWORD` | Servern – knappen "Se demomiljön" (boende)     |
+| Variabel                        | Används av                                    |
+| ------------------------------- | --------------------------------------------- |
+| `VITE_SUPABASE_URL`             | Klienten (webbläsaren)                        |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Klienten (webbläsaren)                        |
+| `SUPABASE_URL`                  | Servern (SSR och serverfunktioner)            |
+| `SUPABASE_PUBLISHABLE_KEY`      | Servern (SSR och serverfunktioner)            |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Endast `client.server.ts` – aldrig i klienten |
+| `DATABASE_URL`                  | `drizzle-kit` (migrationer)                   |
+| `DEMO_<ROLL>_EMAIL`/`_PASSWORD` | Servern – demoknapparna på `/auth`, se nedan  |
 
 ## Skript
 
@@ -55,12 +54,30 @@ bun run format     # prettier --write .
 GitHub Actions (`.github/workflows/ci.yml`) kör typkoll, lint, formatkontroll,
 bygge och databastesterna på varje PR och push till main.
 
+## Roller
+
+Behörigheterna finns i `src/lib/permissions.ts` och gäller både menyn och
+serverfunktionerna:
+
+| Roll                             | Område         | Kan                                                            |
+| -------------------------------- | -------------- | -------------------------------------------------------------- |
+| Administratör (`org_admin`)      | `/admin`       | Allt, inklusive inställningar och roller                       |
+| Förvaltare (`property_manager`)  | `/admin`       | Allt utom inställningar                                        |
+| Styrelseledamot (`board_member`) | `/admin`       | Följa ärenden och ekonomi, sköta information, möten, underhåll |
+| Fastighetsskötare (`staff`)      | `/admin`       | Handlägga ärenden, fastigheter, bokningsregler                 |
+| Entreprenör (`contractor`)       | `/entreprenor` | Sina tilldelade uppdrag: boka tid, påbörja, markera åtgärdat   |
+| Boende (`resident`)              | `/app`         | Sitt boende, felanmälan, bokningar, avgifter, meddelanden      |
+
+Databasens radregler skiljer bara på personal, entreprenör och boende; den
+finare uppdelningen mellan personalroller görs i serverfunktionerna.
+
 ## Demomiljön
 
 - Demoföreningen BRF Solrosen återställs varje natt kl. 03:00 UTC av
-  `public.reset_demo()` (pg_cron), med datum räknade från dagens datum.
-- "Se demomiljön" på `/auth` loggar in på visningskonton vars uppgifter bara finns
-  i `DEMO_*`-variablerna. Konton med `app_metadata.demo_account = true` kan inte
+  `public.reset_demo_all()` (pg_cron), med datum räknade från dagens datum.
+- "Se demomiljön" på `/auth` loggar in på ett visningskonto per roll (`DEMO_RESIDENT`,
+  `DEMO_ADMIN`, `DEMO_BOARD`, `DEMO_STAFF`, `DEMO_CONTRACTOR`) vars uppgifter bara finns
+  i miljövariablerna. Konton med `app_metadata.demo_account = true` kan inte
   byta lösenord eller e-post via Auth-API:t.
 - Förfrågningar från `/boka-demo` sparas i tabellen `demo_requests` och läses i
   Supabase-dashboarden (Table Editor).

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { hasPermission, homeFor, permissionsFor, type Permission } from "@/lib/permissions";
+import { priorityLabels, requestStatusLabels } from "@/lib/format";
 
 type Db = SupabaseClient<Database>;
 
@@ -65,6 +67,8 @@ async function loadMe(supabase: Db, userId: string) {
     userId,
     profile,
     roles,
+    permissions: permissionsFor(roles),
+    home: homeFor({ roles, hasResidency: !!residency }),
     isStaff: roles.some((r) => STAFF_ROLES.includes(r)),
     isContractor: roles.includes("contractor"),
     organization: org,
@@ -72,9 +76,9 @@ async function loadMe(supabase: Db, userId: string) {
   };
 }
 
-async function requireStaff(supabase: Db, userId: string) {
+async function requirePermission(supabase: Db, userId: string, permission: Permission) {
   const me = await loadMe(supabase, userId);
-  if (!me.isStaff) throw new Error("Behörighet saknas");
+  if (!hasPermission(me.roles, permission)) throw new Error("Behörighet saknas");
   if (!me.profile?.organization_id) throw new Error("Ingen organisation");
   return { me, orgId: me.profile.organization_id };
 }
@@ -259,7 +263,7 @@ export const addRequestComment = createServerFn({ method: "POST" })
         request_id: data.requestId,
         author_user_id: context.userId,
         author_name: me.profile?.full_name ?? "Boende",
-        author_role: me.isStaff ? "staff" : "resident",
+        author_role: me.isStaff ? "staff" : me.isContractor ? "contractor" : "resident",
         body: data.body.trim(),
       });
       if (error) throw new Error(error.message);
@@ -517,7 +521,7 @@ export const getAdminOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { me, orgId } = await requireStaff(supabase, context.userId);
+    const { me, orgId } = await requirePermission(supabase, context.userId, "overview");
 
     // Senaste debiteringsperioden som har startat (inte framtida perioder).
     const { data: latestPayment } = await supabase
@@ -613,11 +617,13 @@ export const getAdminOverview = createServerFn({ method: "GET" })
         avgResolutionDays: Math.round(avgDays * 10) / 10,
         categories,
       },
-      economy: {
-        paidShare: pays.length ? Math.round((paid / pays.length) * 1000) / 10 : 0,
-        unpaid: pays.length - paid,
-        billed: pays.reduce((s, p) => s + Number(p.amount), 0),
-      },
+      economy: hasPermission(me.roles, "economy.view")
+        ? {
+            paidShare: pays.length ? Math.round((paid / pays.length) * 1000) / 10 : 0,
+            unpaid: pays.length - paid,
+            billed: pays.reduce((s, p) => s + Number(p.amount), 0),
+          }
+        : null,
       bookings: { occupancy },
       drafts: drafts.data ?? [],
       projects: projects.data ?? [],
@@ -629,7 +635,7 @@ export const getAdminRequests = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    await requireStaff(supabase, context.userId);
+    await requirePermission(supabase, context.userId, "requests.view");
     const { data } = await supabase
       .from("maintenance_requests")
       .select(
@@ -653,7 +659,7 @@ export const updateRequestAdmin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    const { me, orgId } = await requireStaff(supabase, context.userId);
+    const { me, orgId } = await requirePermission(supabase, context.userId, "requests.edit");
 
     const patch: Record<string, unknown> = {};
     if (data.status) patch["status"] = data.status;
@@ -672,8 +678,8 @@ export const updateRequestAdmin = createServerFn({ method: "POST" })
     }
 
     const labels: string[] = [];
-    if (data.status) labels.push(`Status ändrad till ${data.status}`);
-    if (data.priority) labels.push(`Prioritet ändrad till ${data.priority}`);
+    if (data.status) labels.push(`Status ändrad till ${requestStatusLabels[data.status]}`);
+    if (data.priority) labels.push(`Prioritet ändrad till ${priorityLabels[data.priority]}`);
     if (data.assigneeName) labels.push(`Ansvarig: ${data.assigneeName}`);
     if (data.contractorId) {
       const { data: c } = await supabase
@@ -705,7 +711,7 @@ export const getAdminProperties = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "properties.view");
     const [properties, buildings, units] = await Promise.all([
       supabase.from("properties").select("*").eq("organization_id", orgId).order("address"),
       supabase.from("buildings").select("*").eq("organization_id", orgId),
@@ -725,7 +731,7 @@ export const getAdminUnits = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "properties.view");
     const { data } = await supabase
       .from("units")
       .select(
@@ -742,7 +748,7 @@ export const getAdminResidents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "residents.view");
     const { data } = await supabase
       .from("residencies")
       .select(
@@ -759,7 +765,7 @@ export const getResidentDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    await requireStaff(supabase, context.userId);
+    await requirePermission(supabase, context.userId, "residents.view");
     const { data: residency } = await supabase
       .from("residencies")
       .select("*, units(*, buildings(name, properties(name, address)))")
@@ -800,7 +806,7 @@ export const getContractors = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "contractors.view");
     const [contractors, requests] = await Promise.all([
       supabase.from("contractors").select("*").eq("organization_id", orgId).order("company"),
       supabase
@@ -827,7 +833,7 @@ export const saveContractor = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "contractors.edit");
     const row = {
       organization_id: orgId,
       company: data.company,
@@ -848,7 +854,7 @@ export const getAdminAnnouncements = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "communication.edit");
     const [announcements, properties, buildings] = await Promise.all([
       supabase
         .from("announcements")
@@ -881,7 +887,7 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "communication.edit");
     const row = {
       organization_id: orgId,
       title: data.title,
@@ -905,7 +911,7 @@ export const publishAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    await requireStaff(supabase, context.userId);
+    await requirePermission(supabase, context.userId, "communication.edit");
     const { error } = await supabase
       .from("announcements")
       .update({
@@ -921,7 +927,7 @@ export const getAdminBookings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "bookings.edit");
     const [resources, bookings] = await Promise.all([
       supabase.from("resources").select("*").eq("organization_id", orgId).order("name"),
       supabase
@@ -958,7 +964,7 @@ export const updateResource = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    await requireStaff(supabase, context.userId);
+    await requirePermission(supabase, context.userId, "bookings.edit");
     const { error } = await supabase
       .from("resources")
       .update({
@@ -979,7 +985,7 @@ export const getAdminEconomy = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "economy.view");
     const { data } = await supabase
       .from("payments")
       .select("id, period, amount, status, due_date, kind, units(unit_number, address)")
@@ -1019,7 +1025,7 @@ export const markPaymentPaid = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    await requireStaff(supabase, context.userId);
+    await requirePermission(supabase, context.userId, "economy.edit");
     const { error } = await supabase
       .from("payments")
       .update({ status: "paid", paid_at: new Date().toISOString() })
@@ -1032,6 +1038,7 @@ export const getMaintenanceProjects = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
+    await requirePermission(supabase, context.userId, "maintenance.view");
     const { data } = await supabase
       .from("maintenance_projects")
       .select("*, properties(name)")
@@ -1052,7 +1059,7 @@ export const saveMaintenanceProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "maintenance.edit");
     const row = {
       organization_id: orgId,
       title: data.title,
@@ -1071,7 +1078,7 @@ export const getAdminSettings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "settings.edit");
     const [org, profiles, roles, properties] = await Promise.all([
       supabase.from("organizations").select("*").eq("id", orgId).maybeSingle(),
       supabase.from("profiles").select("id, full_name, email").eq("organization_id", orgId),
@@ -1086,4 +1093,103 @@ export const getAdminSettings = createServerFn({ method: "GET" })
       })),
       propertyCount: properties.data?.length ?? 0,
     };
+  });
+
+/* ---------------------------- ENTREPRENÖR ---------------------------- */
+
+async function requireContractor(supabase: Db, userId: string) {
+  const me = await loadMe(supabase, userId);
+  if (!me.isContractor) throw new Error("Behörighet saknas");
+  const { data: companies } = await supabase
+    .from("contractors")
+    .select("id, company, contact_name, organization_id")
+    .eq("user_id", userId);
+  if (!companies || companies.length === 0)
+    throw new Error("Kontot är inte kopplat till en entreprenör");
+  return { me, companies };
+}
+
+export const getContractorJobs = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase as Db;
+    const { me, companies } = await requireContractor(supabase, context.userId);
+    const { data } = await supabase
+      .from("maintenance_requests")
+      .select(
+        "id, ticket_number, title, category, status, priority, is_urgent, room, created_at, updated_at, reporter_name, units(unit_number, address)",
+      )
+      .in(
+        "contractor_id",
+        companies.map((c) => c.id),
+      )
+      .order("updated_at", { ascending: false });
+    return { me, companies, jobs: data ?? [] };
+  });
+
+const stockholmTime = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "Europe/Stockholm",
+  day: "numeric",
+  month: "long",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+export const updateContractorJob = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      id,
+      status: z.enum(["booked", "in_progress", "resolved"]).optional(),
+      scheduledAt: z.string().datetime({ offset: true }).optional(),
+      note: longText.optional(),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { me, companies } = await requireContractor(supabase, context.userId);
+    const { data: job } = await supabase
+      .from("maintenance_requests")
+      .select("id, organization_id, contractor_id")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (!job || !companies.some((c) => c.id === job.contractor_id)) {
+      throw new Error("Uppdraget hittades inte");
+    }
+
+    const status = data.scheduledAt && !data.status ? "booked" : data.status;
+    if (status) {
+      const { error } = await supabase
+        .from("maintenance_requests")
+        .update({
+          status,
+          resolved_at: status === "resolved" ? new Date().toISOString() : null,
+        })
+        .eq("id", data.id);
+      if (error) throw new Error(error.message);
+    }
+
+    const company = companies.find((c) => c.id === job.contractor_id)?.company ?? "Entreprenören";
+    const labels: string[] = [];
+    if (data.scheduledAt)
+      labels.push(`Tid bokad: ${stockholmTime.format(new Date(data.scheduledAt))}`);
+    if (status === "in_progress") labels.push(`${company} har påbörjat arbetet`);
+    if (status === "resolved") labels.push(`${company} har markerat ärendet som åtgärdat`);
+    for (const label of labels) {
+      await supabase
+        .from("maintenance_events")
+        .insert({ organization_id: job.organization_id, request_id: data.id, label });
+    }
+    if (data.note?.trim()) {
+      const { error } = await supabase.from("maintenance_comments").insert({
+        organization_id: job.organization_id,
+        request_id: data.id,
+        author_user_id: context.userId,
+        author_name: me.profile?.full_name ?? company,
+        author_role: "contractor",
+        body: data.note.trim(),
+      });
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true };
   });

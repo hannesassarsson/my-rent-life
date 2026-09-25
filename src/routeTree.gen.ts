@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BokaDemoRouteImport } from './routes/boka-demo'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as AuthenticatedEntreprenorRouteImport } from './routes/_authenticated/entreprenor'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminBokningarRouteImport } from './routes/_authenticated/admin.bokningar'
 import { Route as AuthenticatedAdminEkonomiRouteImport } from './routes/_authenticated/admin.ekonomi'
@@ -31,6 +32,8 @@ import { Route as AuthenticatedAppEkonomiRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAppInformationRouteImport } from './routes/_authenticated/app.information'
 import { Route as AuthenticatedAppMeddelandenRouteImport } from './routes/_authenticated/app.meddelanden'
 import { Route as AuthenticatedAppMotenRouteImport } from './routes/_authenticated/app.moten'
+import { Route as AuthenticatedEntreprenorIndexRouteImport } from './routes/_authenticated/entreprenor.index'
+import { Route as AuthenticatedEntreprenorIdRouteImport } from './routes/_authenticated/entreprenor.$id'
 import { Route as AuthenticatedAdminArendenIndexRouteImport } from './routes/_authenticated/admin.arenden.index'
 import { Route as AuthenticatedAdminArendenIdRouteImport } from './routes/_authenticated/admin.arenden.$id'
 import { Route as AuthenticatedAdminBoendeIndexRouteImport } from './routes/_authenticated/admin.boende.index'
@@ -67,6 +70,12 @@ const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   path: '/app',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedEntreprenorRoute =
+  AuthenticatedEntreprenorRouteImport.update({
+    id: '/entreprenor',
+    path: '/entreprenor',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -158,6 +167,18 @@ const AuthenticatedAppMotenRoute = AuthenticatedAppMotenRouteImport.update({
   path: '/moten',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedEntreprenorIndexRoute =
+  AuthenticatedEntreprenorIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedEntreprenorRoute,
+  } as any)
+const AuthenticatedEntreprenorIdRoute =
+  AuthenticatedEntreprenorIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AuthenticatedEntreprenorRoute,
+  } as any)
 const AuthenticatedAdminArendenIndexRoute =
   AuthenticatedAdminArendenIndexRouteImport.update({
     id: '/arenden/',
@@ -201,6 +222,7 @@ export interface FileRoutesByFullPath {
   '/boka-demo': typeof BokaDemoRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/app': typeof AuthenticatedAppRouteWithChildren
+  '/entreprenor': typeof AuthenticatedEntreprenorRouteWithChildren
   '/admin/bokningar': typeof AuthenticatedAdminBokningarRoute
   '/admin/ekonomi': typeof AuthenticatedAdminEkonomiRoute
   '/admin/entreprenorer': typeof AuthenticatedAdminEntreprenorerRoute
@@ -215,8 +237,10 @@ export interface FileRoutesByFullPath {
   '/app/information': typeof AuthenticatedAppInformationRoute
   '/app/meddelanden': typeof AuthenticatedAppMeddelandenRoute
   '/app/moten': typeof AuthenticatedAppMotenRoute
+  '/entreprenor/$id': typeof AuthenticatedEntreprenorIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
+  '/entreprenor/': typeof AuthenticatedEntreprenorIndexRoute
   '/admin/arenden/$id': typeof AuthenticatedAdminArendenIdRoute
   '/admin/boende/$id': typeof AuthenticatedAdminBoendeIdRoute
   '/app/felanmalan/$id': typeof AuthenticatedAppFelanmalanIdRoute
@@ -242,8 +266,10 @@ export interface FileRoutesByTo {
   '/app/information': typeof AuthenticatedAppInformationRoute
   '/app/meddelanden': typeof AuthenticatedAppMeddelandenRoute
   '/app/moten': typeof AuthenticatedAppMotenRoute
+  '/entreprenor/$id': typeof AuthenticatedEntreprenorIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
+  '/entreprenor': typeof AuthenticatedEntreprenorIndexRoute
   '/admin/arenden/$id': typeof AuthenticatedAdminArendenIdRoute
   '/admin/boende/$id': typeof AuthenticatedAdminBoendeIdRoute
   '/app/felanmalan/$id': typeof AuthenticatedAppFelanmalanIdRoute
@@ -259,6 +285,7 @@ export interface FileRoutesById {
   '/boka-demo': typeof BokaDemoRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
+  '/_authenticated/entreprenor': typeof AuthenticatedEntreprenorRouteWithChildren
   '/_authenticated/admin/bokningar': typeof AuthenticatedAdminBokningarRoute
   '/_authenticated/admin/ekonomi': typeof AuthenticatedAdminEkonomiRoute
   '/_authenticated/admin/entreprenorer': typeof AuthenticatedAdminEntreprenorerRoute
@@ -273,8 +300,10 @@ export interface FileRoutesById {
   '/_authenticated/app/information': typeof AuthenticatedAppInformationRoute
   '/_authenticated/app/meddelanden': typeof AuthenticatedAppMeddelandenRoute
   '/_authenticated/app/moten': typeof AuthenticatedAppMotenRoute
+  '/_authenticated/entreprenor/$id': typeof AuthenticatedEntreprenorIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
+  '/_authenticated/entreprenor/': typeof AuthenticatedEntreprenorIndexRoute
   '/_authenticated/admin/arenden/$id': typeof AuthenticatedAdminArendenIdRoute
   '/_authenticated/admin/boende/$id': typeof AuthenticatedAdminBoendeIdRoute
   '/_authenticated/app/felanmalan/$id': typeof AuthenticatedAppFelanmalanIdRoute
@@ -290,6 +319,7 @@ export interface FileRouteTypes {
     | '/boka-demo'
     | '/admin'
     | '/app'
+    | '/entreprenor'
     | '/admin/bokningar'
     | '/admin/ekonomi'
     | '/admin/entreprenorer'
@@ -304,8 +334,10 @@ export interface FileRouteTypes {
     | '/app/information'
     | '/app/meddelanden'
     | '/app/moten'
+    | '/entreprenor/$id'
     | '/admin/'
     | '/app/'
+    | '/entreprenor/'
     | '/admin/arenden/$id'
     | '/admin/boende/$id'
     | '/app/felanmalan/$id'
@@ -331,8 +363,10 @@ export interface FileRouteTypes {
     | '/app/information'
     | '/app/meddelanden'
     | '/app/moten'
+    | '/entreprenor/$id'
     | '/admin'
     | '/app'
+    | '/entreprenor'
     | '/admin/arenden/$id'
     | '/admin/boende/$id'
     | '/app/felanmalan/$id'
@@ -347,6 +381,7 @@ export interface FileRouteTypes {
     | '/boka-demo'
     | '/_authenticated/admin'
     | '/_authenticated/app'
+    | '/_authenticated/entreprenor'
     | '/_authenticated/admin/bokningar'
     | '/_authenticated/admin/ekonomi'
     | '/_authenticated/admin/entreprenorer'
@@ -361,8 +396,10 @@ export interface FileRouteTypes {
     | '/_authenticated/app/information'
     | '/_authenticated/app/meddelanden'
     | '/_authenticated/app/moten'
+    | '/_authenticated/entreprenor/$id'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
+    | '/_authenticated/entreprenor/'
     | '/_authenticated/admin/arenden/$id'
     | '/_authenticated/admin/boende/$id'
     | '/_authenticated/app/felanmalan/$id'
@@ -420,6 +457,13 @@ declare module '@tanstack/react-router' {
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AuthenticatedAppRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/entreprenor': {
+      id: '/_authenticated/entreprenor'
+      path: '/entreprenor'
+      fullPath: '/entreprenor'
+      preLoaderRoute: typeof AuthenticatedEntreprenorRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/': {
@@ -534,6 +578,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppMotenRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/entreprenor/': {
+      id: '/_authenticated/entreprenor/'
+      path: '/'
+      fullPath: '/entreprenor/'
+      preLoaderRoute: typeof AuthenticatedEntreprenorIndexRouteImport
+      parentRoute: typeof AuthenticatedEntreprenorRoute
+    }
+    '/_authenticated/entreprenor/$id': {
+      id: '/_authenticated/entreprenor/$id'
+      path: '/$id'
+      fullPath: '/entreprenor/$id'
+      preLoaderRoute: typeof AuthenticatedEntreprenorIdRouteImport
+      parentRoute: typeof AuthenticatedEntreprenorRoute
+    }
     '/_authenticated/admin/arenden/': {
       id: '/_authenticated/admin/arenden/'
       path: '/arenden'
@@ -641,14 +699,32 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
 const AuthenticatedAppRouteWithChildren =
   AuthenticatedAppRoute._addFileChildren(AuthenticatedAppRouteChildren)
 
+interface AuthenticatedEntreprenorRouteChildren {
+  AuthenticatedEntreprenorIdRoute: typeof AuthenticatedEntreprenorIdRoute
+  AuthenticatedEntreprenorIndexRoute: typeof AuthenticatedEntreprenorIndexRoute
+}
+
+const AuthenticatedEntreprenorRouteChildren: AuthenticatedEntreprenorRouteChildren =
+  {
+    AuthenticatedEntreprenorIdRoute: AuthenticatedEntreprenorIdRoute,
+    AuthenticatedEntreprenorIndexRoute: AuthenticatedEntreprenorIndexRoute,
+  }
+
+const AuthenticatedEntreprenorRouteWithChildren =
+  AuthenticatedEntreprenorRoute._addFileChildren(
+    AuthenticatedEntreprenorRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
+  AuthenticatedEntreprenorRoute: typeof AuthenticatedEntreprenorRouteWithChildren
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
+  AuthenticatedEntreprenorRoute: AuthenticatedEntreprenorRouteWithChildren,
 }
 
 const AuthenticatedRouteRouteWithChildren =

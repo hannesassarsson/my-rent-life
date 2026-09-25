@@ -14,7 +14,8 @@ import {
 } from "@/lib/app.functions";
 import { PageHeader, Panel, DataRow, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { PriorityBadge, RequestStatusBadge } from "@/components/status-badge";
-import { dateTime, priorityLabels, requestStatusLabels } from "@/lib/format";
+import { authorRoleLabel, dateTime, priorityLabels, requestStatusLabels } from "@/lib/format";
+import { useCan } from "@/lib/use-can";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,7 @@ function AdminRequestDetail() {
   const contractorsFn = useServerFn(getContractors);
   const updateFn = useServerFn(updateRequestAdmin);
   const queryClient = useQueryClient();
+  const can = useCan();
 
   const { data, isPending } = useQuery({
     queryKey: ["request", id],
@@ -126,7 +128,12 @@ function AdminRequestDetail() {
                 {data.comments.map((c) => (
                   <li key={c.id} className="rounded-xl border border-border p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-medium">{c.author_name}</p>
+                      <p className="text-sm font-medium">
+                        {c.author_name}{" "}
+                        <span className="font-normal text-muted-foreground">
+                          · {authorRoleLabel(c.author_role)}
+                        </span>
+                      </p>
                       <p className="text-xs text-muted-foreground">{dateTime(c.created_at)}</p>
                     </div>
                     <p className="mt-1.5 text-sm whitespace-pre-line">{c.body}</p>
@@ -134,126 +141,132 @@ function AdminRequestDetail() {
                 ))}
               </ul>
             )}
-            <div className="mt-4 space-y-2">
-              <Label htmlFor="note">Svara boende</Label>
-              <Textarea
-                id="note"
-                rows={3}
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Skriv ett svar eller en statusuppdatering…"
-              />
-              <Button
-                disabled={!note.trim() || mutation.isPending}
-                onClick={() => mutation.mutate({ id, note })}
-              >
-                Skicka svar
-              </Button>
-            </div>
+            {can("requests.edit") ? (
+              <div className="mt-4 space-y-2">
+                <Label htmlFor="note">Svara boende</Label>
+                <Textarea
+                  id="note"
+                  rows={3}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Skriv ett svar eller en statusuppdatering…"
+                />
+                <Button
+                  disabled={!note.trim() || mutation.isPending}
+                  onClick={() => mutation.mutate({ id, note })}
+                >
+                  Skicka svar
+                </Button>
+              </div>
+            ) : null}
           </Panel>
         </div>
 
         <div className="space-y-5">
-          <Panel title="Handlägg ärendet">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select
-                  value={r.status as string}
-                  onValueChange={(value) => mutation.mutate({ id, status: value as RequestStatus })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(requestStatusLabels).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          {can("requests.edit") ? (
+            <Panel title="Handlägg ärendet">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={r.status as string}
+                    onValueChange={(value) =>
+                      mutation.mutate({ id, status: value as RequestStatus })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(requestStatusLabels).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Prioritet</Label>
-                <Select
-                  value={r.priority as string}
-                  onValueChange={(value) =>
-                    mutation.mutate({ id, priority: value as RequestPriority })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(priorityLabels).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-2">
+                  <Label>Prioritet</Label>
+                  <Select
+                    value={r.priority as string}
+                    onValueChange={(value) =>
+                      mutation.mutate({ id, priority: value as RequestPriority })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(priorityLabels).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Entreprenör</Label>
-                <Select
-                  value={r.contractors?.id ?? "none"}
-                  onValueChange={(value) =>
-                    mutation.mutate({ id, contractorId: value === "none" ? null : value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Välj entreprenör" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Ingen</SelectItem>
-                    {(contractorData?.contractors ?? []).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.company}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-2">
+                  <Label>Entreprenör</Label>
+                  <Select
+                    value={r.contractors?.id ?? "none"}
+                    onValueChange={(value) =>
+                      mutation.mutate({ id, contractorId: value === "none" ? null : value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Välj entreprenör" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Ingen</SelectItem>
+                      {(contractorData?.contractors ?? []).map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.company}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="assignee">Ansvarig</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="assignee"
-                    value={currentAssignee}
-                    onChange={(e) => setAssignee(e.target.value)}
-                    placeholder="Namn"
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="assignee">Ansvarig</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="assignee"
+                      value={currentAssignee}
+                      onChange={(e) => setAssignee(e.target.value)}
+                      placeholder="Namn"
+                    />
+                    <Button
+                      variant="secondary"
+                      disabled={mutation.isPending}
+                      onClick={() => mutation.mutate({ id, assigneeName: currentAssignee || null })}
+                    >
+                      Spara
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 border-t border-border pt-4">
                   <Button
                     variant="secondary"
                     disabled={mutation.isPending}
-                    onClick={() => mutation.mutate({ id, assigneeName: currentAssignee || null })}
+                    onClick={() => mutation.mutate({ id, status: "in_progress" })}
                   >
-                    Spara
+                    Markera pågående
+                  </Button>
+                  <Button
+                    disabled={mutation.isPending}
+                    onClick={() => mutation.mutate({ id, status: "resolved" })}
+                  >
+                    Markera löst
                   </Button>
                 </div>
               </div>
-
-              <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-                <Button
-                  variant="secondary"
-                  disabled={mutation.isPending}
-                  onClick={() => mutation.mutate({ id, status: "in_progress" })}
-                >
-                  Markera pågående
-                </Button>
-                <Button
-                  disabled={mutation.isPending}
-                  onClick={() => mutation.mutate({ id, status: "resolved" })}
-                >
-                  Markera löst
-                </Button>
-              </div>
-            </div>
-          </Panel>
+            </Panel>
+          ) : null}
 
           {r.contractors ? (
             <Panel title="Tilldelad entreprenör">

@@ -114,3 +114,10 @@ export const docTypeLabels: Record<string, string> = {
 export function docTypeLabel(type: string) {
   return docTypeLabels[type] ?? type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ");
 }
+
+export function authorRoleLabel(role: string) {
+  if (role === "resident") return "Boende";
+  if (role === "contractor") return "Entreprenör";
+  if (role === "board_member") return "Styrelsen";
+  return "Förvaltning";
+}

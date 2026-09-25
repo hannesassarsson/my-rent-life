@@ -7,6 +7,7 @@ import { getAdminEconomy, markPaymentPaid } from "@/lib/app.functions";
 import { PageHeader, Panel, Kpi, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { PaymentStatusBadge } from "@/components/status-badge";
 import { kr, dateLong, monthName } from "@/lib/format";
+import { useCan } from "@/lib/use-can";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/admin/ekonomi")({
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/_authenticated/admin/ekonomi")({
 
 function AdminEconomy() {
   const fn = useServerFn(getAdminEconomy);
+  const can = useCan();
   const markFn = useServerFn(markPaymentPaid);
   const queryClient = useQueryClient();
   const { data, isPending } = useQuery({ queryKey: ["admin-economy"], queryFn: () => fn() });
@@ -111,6 +113,7 @@ function AdminEconomy() {
                     <Button
                       size="sm"
                       variant="outline"
+                      hidden={!can("economy.edit")}
                       disabled={mark.isPending}
                       onClick={() => mark.mutate(r.id)}
                     >

@@ -12,6 +12,7 @@ import {
 import { PageHeader, Panel, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { ProjectStatusBadge } from "@/components/status-badge";
 import { kr } from "@/lib/format";
+import { useCan } from "@/lib/use-can";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +48,7 @@ const emptyDraft = (): Draft => ({
 
 function AdminMaintenance() {
   const fn = useServerFn(getMaintenanceProjects);
+  const can = useCan();
   const saveFn = useServerFn(saveMaintenanceProject);
   const queryClient = useQueryClient();
   const { data, isPending } = useQuery({ queryKey: ["admin-projects"], queryFn: () => fn() });
@@ -79,9 +81,11 @@ function AdminMaintenance() {
               if (!v) setDraft(emptyDraft());
             }}
           >
-            <DialogTrigger asChild>
-              <Button>Nytt projekt</Button>
-            </DialogTrigger>
+            {can("maintenance.edit") ? (
+              <DialogTrigger asChild>
+                <Button>Nytt projekt</Button>
+              </DialogTrigger>
+            ) : null}
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>{draft.id ? "Redigera projekt" : "Nytt projekt"}</DialogTitle>
@@ -172,6 +176,7 @@ function AdminMaintenance() {
                       <Button
                         size="sm"
                         variant="outline"
+                        hidden={!can("maintenance.edit")}
                         onClick={() => {
                           setDraft({
                             id: p.id,

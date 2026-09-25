@@ -44,12 +44,20 @@ function AdminOverview() {
           tone={data.requests.urgent > 0 ? "warning" : "default"}
           hint={`${data.requests.newToday} nya idag · ${data.requests.urgent} akuta`}
         />
-        <Kpi
-          label="Betalningsgrad"
-          value={`${data.economy.paidShare.toString().replace(".", ",")} %`}
-          tone="success"
-          hint={`${data.economy.unpaid} obetalda · ${kr(data.economy.billed)} fakturerat`}
-        />
+        {data.economy ? (
+          <Kpi
+            label="Betalningsgrad"
+            value={`${data.economy.paidShare.toString().replace(".", ",")} %`}
+            tone="success"
+            hint={`${data.economy.unpaid} obetalda · ${kr(data.economy.billed)} fakturerat`}
+          />
+        ) : (
+          <Kpi
+            label="Bokningar"
+            value={data.bookings.occupancy.length}
+            hint="bokningsbara resurser"
+          />
+        )}
         <Kpi label="Kommunikation" value={data.drafts.length} hint="opublicerade meddelanden" />
       </div>
 
@@ -62,7 +70,7 @@ function AdminOverview() {
                 <span>{data.requests.stale} felanmälningar har väntat längre än 7 dagar.</span>
               </li>
             ) : null}
-            {data.economy.unpaid > 0 ? (
+            {data.economy && data.economy.unpaid > 0 ? (
               <li className="flex items-start gap-3">
                 <StatusPill tone="warning">Ekonomi</StatusPill>
                 <span>{data.economy.unpaid} avgifter eller hyror är obetalda denna period.</span>

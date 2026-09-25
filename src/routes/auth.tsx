@@ -8,7 +8,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/app-shell";
-import { startDemo } from "@/lib/public.functions";
+import { startDemo, type DemoKind } from "@/lib/public.functions";
+
+const DEMO_ROLES: { kind: DemoKind; label: string; description: string; to: string }[] = [
+  { kind: "resident", label: "Boende", description: "Avgift, felanmälan, bokningar", to: "/app" },
+  { kind: "admin", label: "Förvaltare", description: "Hela administrationen", to: "/admin" },
+  { kind: "board", label: "Styrelse", description: "Ekonomi, möten, information", to: "/admin" },
+  {
+    kind: "staff",
+    label: "Fastighetsskötare",
+    description: "Ärenden och fastigheter",
+    to: "/admin",
+  },
+  {
+    kind: "contractor",
+    label: "Entreprenör",
+    description: "Tilldelade uppdrag",
+    to: "/entreprenor",
+  },
+];
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -56,7 +74,7 @@ function AuthPage() {
     }
   }
 
-  async function demoLogin(kind: "admin" | "resident") {
+  async function demoLogin(kind: DemoKind) {
     setBusy(true);
     try {
       const session = await startDemoFn({ data: { kind } });
@@ -65,7 +83,7 @@ function AuthPage() {
         refresh_token: session.refreshToken,
       });
       if (error) throw error;
-      navigate({ to: kind === "admin" ? "/admin" : "/app", replace: true });
+      navigate({ to: DEMO_ROLES.find((r) => r.kind === kind)?.to ?? "/app", replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Kunde inte starta demon");
     } finally {
@@ -125,23 +143,21 @@ function AuthPage() {
               BRF Solrosen med 184 lägenheter, ärenden, bokningar och ekonomi. Demon återställs
               varje natt.
             </p>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <Button
-                variant="secondary"
-                className="flex-1"
-                disabled={busy}
-                onClick={() => demoLogin("resident")}
-              >
-                Som boende
-              </Button>
-              <Button
-                variant="secondary"
-                className="flex-1"
-                disabled={busy}
-                onClick={() => demoLogin("admin")}
-              >
-                Som förvaltare
-              </Button>
+            <div className="mt-3 grid gap-2">
+              {DEMO_ROLES.map((role) => (
+                <Button
+                  key={role.kind}
+                  variant="secondary"
+                  className="h-auto justify-between py-2.5"
+                  disabled={busy}
+                  onClick={() => demoLogin(role.kind)}
+                >
+                  <span className="font-medium">{role.label}</span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {role.description}
+                  </span>
+                </Button>
+              ))}
             </div>
           </div>
         </div>

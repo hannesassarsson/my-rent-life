@@ -1,7 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Menu, LogOut, ArrowLeftRight } from "lucide-react";
 
 import { getMe } from "@/lib/app.functions";
@@ -9,12 +9,34 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { EmptyState } from "@/components/ui-kit";
+import { ROLE_LABELS, type Permission } from "@/lib/permissions";
 
 export type NavItem = {
   label: string;
   to: string;
   icon: React.ComponentType<{ className?: string }>;
+  /** Behörighet som krävs för att se menyvalet och sidan. */
+  permission?: Permission;
 };
+
+export type Area = "resident" | "admin" | "contractor";
+
+const AREA_HOME: Record<Area, string> = {
+  resident: "/app",
+  admin: "/admin",
+  contractor: "/entreprenor",
+};
+
+const AREA_LABEL: Record<Area, string> = {
+  resident: "Mitt boende",
+  admin: "Administration",
+  contractor: "Entreprenör",
+};
+
+function isActive(pathname: string, to: string) {
+  return pathname === to || (!Object.values(AREA_HOME).includes(to) && pathname.startsWith(to));
+}
 
 export function Logo({ className }: { className?: string }) {
   return (
@@ -36,9 +58,7 @@ function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => v
   return (
     <nav className="space-y-0.5">
       {items.map((item) => {
-        const active =
-          pathname === item.to ||
-          (item.to !== "/app" && item.to !== "/admin" && pathname.startsWith(item.to));
+        const active = isActive(pathname, item.to);
         const Icon = item.icon;
         return (
           <Link
@@ -67,14 +87,49 @@ export function AppShell({
   children,
 }: {
   items: NavItem[];
-  area: "resident" | "admin";
+  area: Area;
   children: React.ReactNode;
 }) {
   const getMeFn = useServerFn(getMe);
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: () => getMeFn() });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
+
+  const permissions: readonly string[] = me?.permissions ?? [];
+  const visibleItems = me
+    ? items.filter((item) => !item.permission || permissions.includes(item.permission))
+    : [];
+  const canUseArea =
+    !me ||
+    (area === "admin"
+      ? permissions.length > 0
+      : area === "contractor"
+        ? me.roles.includes("contractor")
+        : !!me.residency || me.home === "/app");
+  const currentItem = [...items]
+    .filter((item) => isActive(pathname, item.to))
+    .sort((a, b) => b.to.length - a.to.length)[0];
+  const allowedHere =
+    !me || !currentItem?.permission || permissions.includes(currentItem.permission);
+
+  // Skicka användaren till rätt del av appen om den inte hör hemma här.
+  useEffect(() => {
+    if (me && !canUseArea && me.home !== AREA_HOME[area]) navigate({ to: me.home, replace: true });
+  }, [me, canUseArea, area, navigate]);
+
+  const otherAreas = me
+    ? (Object.keys(AREA_HOME) as Area[]).filter(
+        (a) =>
+          a !== area &&
+          (a === "admin"
+            ? permissions.length > 0
+            : a === "contractor"
+              ? me.roles.includes("contractor")
+              : !!me.residency),
+      )
+    : [];
 
   async function signOut() {
     await queryClient.cancelQueries();
@@ -90,7 +145,7 @@ export function AppShell({
       </Link>
       <div className="rounded-xl bg-surface-muted px-3 py-3">
         <p className="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">
-          {area === "admin" ? "Administration" : "Mitt boende"}
+          {AREA_LABEL[area]}
         </p>
         <p className="mt-1 truncate text-sm font-medium">{me?.organization?.name ?? "—"}</p>
         {area === "resident" && me?.residency?.units ? (
@@ -100,19 +155,20 @@ export function AppShell({
         ) : null}
       </div>
       <div className="flex-1 overflow-y-auto">
-        <NavList items={items} onNavigate={() => setOpen(false)} />
+        <NavList items={visibleItems} onNavigate={() => setOpen(false)} />
       </div>
       <div className="space-y-1 border-t border-sidebar-border pt-4">
-        {me?.isStaff ? (
+        {otherAreas.map((a) => (
           <Link
-            to={area === "admin" ? "/app" : "/admin"}
+            key={a}
+            to={AREA_HOME[a]}
             onClick={() => setOpen(false)}
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground"
           >
             <ArrowLeftRight className="size-4" />
-            {area === "admin" ? "Byt till boendevyn" : "Byt till administration"}
+            Byt till {AREA_LABEL[a].toLowerCase()}
           </Link>
-        ) : null}
+        ))}
         <button
           onClick={signOut}
           className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground"
@@ -123,6 +179,11 @@ export function AppShell({
         <div className="px-3 pt-2">
           <p className="truncate text-sm font-medium">{me?.profile?.full_name ?? "—"}</p>
           <p className="truncate text-xs text-muted-foreground">{me?.profile?.email}</p>
+          {me && me.roles.length > 0 ? (
+            <p className="mt-1 truncate text-xs text-muted-foreground">
+              {me.roles.map((r) => ROLE_LABELS[r] ?? r).join(", ")}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>
@@ -151,7 +212,16 @@ export function AppShell({
       </header>
 
       <main className="lg:pl-[270px]">
-        <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 sm:py-10">{children}</div>
+        <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 sm:py-10">
+          {allowedHere ? (
+            children
+          ) : (
+            <EmptyState
+              title="Behörighet saknas"
+              description="Din roll har inte tillgång till den här sidan."
+            />
+          )}
+        </div>
       </main>
     </div>
   );
