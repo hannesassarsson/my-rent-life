@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { Banknote, CreditCard, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 
+import { payMyPayment } from "@/lib/app.functions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { dateLong, kr, monthName } from "@/lib/format";
 
-export type PayMethod = "stripe" | "swish" | "bank";
+export type PayMethod = "card" | "swish" | "bank";
 
 const methods: {
   id: PayMethod;
@@ -23,7 +26,7 @@ const methods: {
   icon: typeof CreditCard;
 }[] = [
   {
-    id: "stripe",
+    id: "card",
     label: "Kort",
     description: "Betala direkt med kort. Registreras automatiskt.",
     icon: CreditCard,
@@ -50,7 +53,24 @@ export function PayDialog({
   kindLabel: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [method, setMethod] = useState<PayMethod>("stripe");
+  const [method, setMethod] = useState<PayMethod>("card");
+  const payFn = useServerFn(payMyPayment);
+  const qc = useQueryClient();
+  // Ett stabilt OCR-nummer per avi för demon.
+  const ocr = payment.id.replace(/\D/g, "").slice(0, 12).padEnd(12, "0");
+
+  const pay = useMutation({
+    mutationFn: () => payFn({ data: { id: payment.id, method } }),
+    onSuccess: () => {
+      toast.success("Betalningen är registrerad", {
+        description: "Demoläge – inga pengar har dragits.",
+      });
+      setOpen(false);
+      void qc.invalidateQueries({ queryKey: ["my-economy"] });
+      void qc.invalidateQueries({ queryKey: ["resident-dashboard"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -97,10 +117,14 @@ export function PayDialog({
           })}
         </div>
 
+        <p className="text-xs text-muted-foreground">
+          Demoläge: betalningen registreras direkt och inga pengar dras.
+        </p>
+
         {method === "bank" && (
           <div className="rounded-xl border border-border bg-surface-muted p-3 text-xs text-muted-foreground">
             <p>Bankgiro: 123-4567</p>
-            <p className="mt-1">OCR-nummer: visas när betaltjänsten är aktiverad.</p>
+            <p className="mt-1">OCR-nummer: {ocr}</p>
           </div>
         )}
 
@@ -108,15 +132,12 @@ export function PayDialog({
           <Button variant="outline" onClick={() => setOpen(false)}>
             Avbryt
           </Button>
-          <Button
-            onClick={() => {
-              toast.info("Betaltjänsten är inte aktiverad ännu", {
-                description: "Skalet är på plats – vi kopplar in betalningarna i nästa steg.",
-              });
-              setOpen(false);
-            }}
-          >
-            Fortsätt
+          <Button disabled={pay.isPending} onClick={() => pay.mutate()}>
+            {pay.isPending
+              ? "Betalar…"
+              : method === "bank"
+                ? "Jag har betalat"
+                : `Betala ${kr(payment.amount)}`}
           </Button>
         </DialogFooter>
       </DialogContent>

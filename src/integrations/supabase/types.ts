@@ -782,6 +782,8 @@ export type Database = {
       };
       payments: {
         Row: {
+          reminded_at: string | null;
+          paid_via: string | null;
           amount: number;
           created_at: string;
           due_date: string;
@@ -794,6 +796,8 @@ export type Database = {
           unit_id: string;
         };
         Insert: {
+          reminded_at?: string | null;
+          paid_via?: string | null;
           amount: number;
           created_at?: string;
           due_date: string;
@@ -806,6 +810,8 @@ export type Database = {
           unit_id: string;
         };
         Update: {
+          reminded_at?: string | null;
+          paid_via?: string | null;
           amount?: number;
           created_at?: string;
           due_date?: string;
@@ -1145,6 +1151,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      pay_my_payment: {
+        Args: { _payment_id: string; _method: string };
+        Returns: undefined;
+      };
       update_my_contact: {
         Args: { _full_name: string; _phone: string };
         Returns: undefined;

@@ -1050,10 +1050,12 @@ export const getAdminEconomy = createServerFn({ method: "GET" })
     const { orgId } = await requirePermission(supabase, context.userId, "economy.view");
     const { data } = await supabase
       .from("payments")
-      .select("id, period, amount, status, due_date, kind, units(unit_number, address)")
+      .select(
+        "id, period, amount, status, due_date, kind, reminded_at, units(unit_number, address)",
+      )
       .eq("organization_id", orgId)
       .order("period", { ascending: false })
-      .limit(1000);
+      .limit(5000);
     const rows = data ?? [];
     const byPeriod = new Map<
       string,
@@ -1078,7 +1080,7 @@ export const getAdminEconomy = createServerFn({ method: "GET" })
     });
     return {
       periods: [...byPeriod.values()].sort((a, b) => (a.period < b.period ? 1 : -1)),
-      unpaid: rows.filter((r) => r.status !== "paid").slice(0, 50),
+      unpaid: rows.filter((r) => r.status !== "paid").slice(0, 200),
     };
   });
 
@@ -1090,7 +1092,7 @@ export const markPaymentPaid = createServerFn({ method: "POST" })
     await requirePermission(supabase, context.userId, "economy.edit");
     const { error } = await supabase
       .from("payments")
-      .update({ status: "paid", paid_at: new Date().toISOString() })
+      .update({ status: "paid", paid_at: new Date().toISOString(), paid_via: "manual" })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -1471,6 +1473,159 @@ export const updateMyContact = createServerFn({ method: "POST" })
     const { error } = await supabase.rpc("update_my_contact", {
       _full_name: data.fullName,
       _phone: data.phone,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/* ------------------------------- EKONOMI ------------------------------- */
+
+const period = z.string().regex(/^\d{4}-\d{2}-01$/, "Ogiltig period");
+
+function lastDayOfMonth(periodStart: string) {
+  const [y, m] = periodStart.split("-").map(Number) as [number, number];
+  const d = new Date(Date.UTC(y, m, 0));
+  return d.toISOString().slice(0, 10);
+}
+
+/** Skapar avgifter/hyror för en månad för alla uthyrda lägenheter som saknar en. */
+export const createBilling = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ period }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "economy.edit");
+    const [{ data: units }, { data: existing }] = await Promise.all([
+      supabase
+        .from("units")
+        .select("id, tenure, monthly_amount")
+        .eq("organization_id", orgId)
+        .eq("status", "active"),
+      supabase
+        .from("payments")
+        .select("unit_id")
+        .eq("organization_id", orgId)
+        .eq("period", data.period),
+    ]);
+    const billed = new Set((existing ?? []).map((p) => p.unit_id));
+    const rows = (units ?? [])
+      .filter((u) => !billed.has(u.id))
+      .map((u) => ({
+        organization_id: orgId,
+        unit_id: u.id,
+        kind: u.tenure === "rented" ? "rent" : "fee",
+        period: data.period,
+        amount: Number(u.monthly_amount ?? 0),
+        due_date: lastDayOfMonth(data.period),
+        status: "unpaid",
+      }));
+    if (rows.length > 0) {
+      const { error } = await supabase.from("payments").insert(rows);
+      if (error) throw new Error(error.message);
+    }
+    return {
+      created: rows.length,
+      alreadyBilled: billed.size,
+      total: rows.reduce((sum, r) => sum + r.amount, 0),
+    };
+  });
+
+/** Markerar obetalda poster som påminda och skickar en notis till de boende. */
+export const sendReminders = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ ids: z.array(id).min(1).max(500) }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "economy.edit");
+    const { data: payments } = await supabase
+      .from("payments")
+      .select("id, unit_id, period, amount, due_date, kind, status")
+      .eq("organization_id", orgId)
+      .neq("status", "paid")
+      .in("id", data.ids);
+    if (!payments || payments.length === 0) return { reminded: 0, notified: 0 };
+
+    const { data: residents } = await supabase
+      .from("residencies")
+      .select("unit_id, user_id")
+      .eq("organization_id", orgId)
+      .eq("status", "active")
+      .in(
+        "unit_id",
+        payments.map((p) => p.unit_id),
+      )
+      .not("user_id", "is", null);
+
+    const month = new Intl.DateTimeFormat("sv-SE", { month: "long", year: "numeric" });
+    const notifications = payments.flatMap((p) =>
+      (residents ?? [])
+        .filter((r) => r.unit_id === p.unit_id)
+        .map((r) => ({
+          organization_id: orgId,
+          user_id: r.user_id!,
+          title: `Påminnelse: ${p.kind === "rent" ? "hyra" : "avgift"} för ${month.format(new Date(p.period))}`,
+          body: `Vi har inte fått betalt ${Number(p.amount).toLocaleString("sv-SE")} kr som förföll ${p.due_date}. Betala under Ekonomi.`,
+          link: "/app/ekonomi",
+        })),
+    );
+    const { error } = await supabase
+      .from("payments")
+      .update({ reminded_at: new Date().toISOString() })
+      .in(
+        "id",
+        payments.map((p) => p.id),
+      );
+    if (error) throw new Error(error.message);
+    if (notifications.length > 0) {
+      const { error: notifyError } = await supabase.from("notifications").insert(notifications);
+      if (notifyError) throw new Error(notifyError.message);
+    }
+    return { reminded: payments.length, notified: notifications.length };
+  });
+
+/** Alla poster för en period, för export till CSV. */
+export const getPaymentsForPeriod = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ period }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "economy.view");
+    const { data: rows } = await supabase
+      .from("payments")
+      .select(
+        "period, kind, amount, due_date, status, paid_at, paid_via, reminded_at, units(address, unit_number, object_number, residencies(resident_name, status))",
+      )
+      .eq("organization_id", orgId)
+      .eq("period", data.period)
+      .order("unit_id");
+    return (rows ?? []).map((r) => ({
+      period: r.period,
+      address: r.units?.address ?? "",
+      unit: r.units?.unit_number ?? "",
+      objectNumber: r.units?.object_number ?? "",
+      resident:
+        r.units?.residencies
+          ?.filter((x) => x.status === "active")
+          .map((x) => x.resident_name)
+          .join(", ") ?? "",
+      kind: r.kind === "rent" ? "Hyra" : "Avgift",
+      amount: Number(r.amount),
+      dueDate: r.due_date,
+      status: r.status === "paid" ? "Betald" : "Obetald",
+      paidAt: r.paid_at?.slice(0, 10) ?? "",
+      paidVia: r.paid_via ?? "",
+      remindedAt: r.reminded_at?.slice(0, 10) ?? "",
+    }));
+  });
+
+export const payMyPayment = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ id, method: z.enum(["card", "swish", "bank"]) }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { error } = await supabase.rpc("pay_my_payment", {
+      _payment_id: data.id,
+      _method: data.method,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
