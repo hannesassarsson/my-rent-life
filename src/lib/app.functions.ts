@@ -79,6 +79,13 @@ async function requireStaff(supabase: Db, userId: string) {
   return { me, orgId: me.profile.organization_id };
 }
 
+/** Felkod P0001 är regelbrott från bokningstriggrarna, 23505 en dubbelbokning. */
+function bookingErrorMessage(error: { code?: string; message: string }) {
+  if (error.code === "23505") return "Tiden är redan bokad.";
+  if (error.code === "P0001") return error.message;
+  return "Bokningen kunde inte sparas.";
+}
+
 export const getMe = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => loadMe(context.supabase as Db, context.userId));
@@ -330,7 +337,7 @@ export const getMyBookings = createServerFn({ method: "GET" })
     const supabase = context.supabase as Db;
     const { data } = await supabase
       .from("bookings")
-      .select("id, starts_at, ends_at, status, resources(name, icon, location)")
+      .select("id, starts_at, ends_at, status, resources(name, icon, location, cancel_hours)")
       .eq("user_id", context.userId)
       .order("starts_at", { ascending: true });
     return data ?? [];
@@ -356,24 +363,8 @@ export const createBooking = createServerFn({ method: "POST" })
     const orgId = me.profile?.organization_id;
     if (!orgId) throw new Error("Ingen organisation");
 
-    const { data: resource } = await supabase
-      .from("resources")
-      .select("max_active_bookings, name")
-      .eq("id", data.resourceId)
-      .maybeSingle();
-
-    const { data: active } = await supabase
-      .from("bookings")
-      .select("id")
-      .eq("user_id", context.userId)
-      .eq("resource_id", data.resourceId)
-      .gte("ends_at", new Date().toISOString());
-    if (resource && (active?.length ?? 0) >= resource.max_active_bookings) {
-      throw new Error(
-        `Du har redan ${resource.max_active_bookings} aktiva bokningar för ${resource.name}.`,
-      );
-    }
-
+    // Bokningsreglerna (öppettider, max aktiva bokningar m.m.) kontrolleras av
+    // databasen, se migrationen booking_rules.
     const { error } = await supabase.from("bookings").insert({
       organization_id: orgId,
       resource_id: data.resourceId,
@@ -383,7 +374,7 @@ export const createBooking = createServerFn({ method: "POST" })
       starts_at: data.startsAt,
       ends_at: data.endsAt,
     });
-    if (error) throw new Error("Tiden är redan bokad.");
+    if (error) throw new Error(bookingErrorMessage(error));
     return { ok: true };
   });
 
@@ -393,7 +384,7 @@ export const cancelBooking = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
     const { error } = await supabase.from("bookings").delete().eq("id", data.id);
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(bookingErrorMessage(error));
     return { ok: true };
   });
 
