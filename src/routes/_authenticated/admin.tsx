@@ -10,6 +10,8 @@ import {
   HardHat,
   Hammer,
   Settings,
+  MessageSquare,
+  CalendarDays,
 } from "lucide-react";
 
 import { AppShell, type NavItem } from "@/components/app-shell";
@@ -32,6 +34,13 @@ const items: NavItem[] = [
     icon: Megaphone,
     permission: "communication.edit",
   },
+  {
+    label: "Meddelanden",
+    to: "/admin/meddelanden",
+    icon: MessageSquare,
+    permission: "messages.edit",
+  },
+  { label: "Möten", to: "/admin/moten", icon: CalendarDays, permission: "meetings.edit" },
   {
     label: "Entreprenörer",
     to: "/admin/entreprenorer",

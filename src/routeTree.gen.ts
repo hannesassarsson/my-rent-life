@@ -23,6 +23,8 @@ import { Route as AuthenticatedAdminEntreprenorerRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminFastigheterRouteImport } from './routes/_authenticated/admin.fastigheter'
 import { Route as AuthenticatedAdminInstallningarRouteImport } from './routes/_authenticated/admin.installningar'
 import { Route as AuthenticatedAdminKommunikationRouteImport } from './routes/_authenticated/admin.kommunikation'
+import { Route as AuthenticatedAdminMeddelandenRouteImport } from './routes/_authenticated/admin.meddelanden'
+import { Route as AuthenticatedAdminMotenRouteImport } from './routes/_authenticated/admin.moten'
 import { Route as AuthenticatedAdminUnderhallRouteImport } from './routes/_authenticated/admin.underhall'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppBoendeRouteImport } from './routes/_authenticated/app.boende'
@@ -117,6 +119,17 @@ const AuthenticatedAdminKommunikationRoute =
     path: '/kommunikation',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminMeddelandenRoute =
+  AuthenticatedAdminMeddelandenRouteImport.update({
+    id: '/meddelanden',
+    path: '/meddelanden',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminMotenRoute = AuthenticatedAdminMotenRouteImport.update({
+  id: '/moten',
+  path: '/moten',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminUnderhallRoute =
   AuthenticatedAdminUnderhallRouteImport.update({
     id: '/underhall',
@@ -229,6 +242,8 @@ export interface FileRoutesByFullPath {
   '/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
   '/admin/installningar': typeof AuthenticatedAdminInstallningarRoute
   '/admin/kommunikation': typeof AuthenticatedAdminKommunikationRoute
+  '/admin/meddelanden': typeof AuthenticatedAdminMeddelandenRoute
+  '/admin/moten': typeof AuthenticatedAdminMotenRoute
   '/admin/underhall': typeof AuthenticatedAdminUnderhallRoute
   '/app/boende': typeof AuthenticatedAppBoendeRoute
   '/app/bokningar': typeof AuthenticatedAppBokningarRoute
@@ -258,6 +273,8 @@ export interface FileRoutesByTo {
   '/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
   '/admin/installningar': typeof AuthenticatedAdminInstallningarRoute
   '/admin/kommunikation': typeof AuthenticatedAdminKommunikationRoute
+  '/admin/meddelanden': typeof AuthenticatedAdminMeddelandenRoute
+  '/admin/moten': typeof AuthenticatedAdminMotenRoute
   '/admin/underhall': typeof AuthenticatedAdminUnderhallRoute
   '/app/boende': typeof AuthenticatedAppBoendeRoute
   '/app/bokningar': typeof AuthenticatedAppBokningarRoute
@@ -292,6 +309,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
   '/_authenticated/admin/installningar': typeof AuthenticatedAdminInstallningarRoute
   '/_authenticated/admin/kommunikation': typeof AuthenticatedAdminKommunikationRoute
+  '/_authenticated/admin/meddelanden': typeof AuthenticatedAdminMeddelandenRoute
+  '/_authenticated/admin/moten': typeof AuthenticatedAdminMotenRoute
   '/_authenticated/admin/underhall': typeof AuthenticatedAdminUnderhallRoute
   '/_authenticated/app/boende': typeof AuthenticatedAppBoendeRoute
   '/_authenticated/app/bokningar': typeof AuthenticatedAppBokningarRoute
@@ -326,6 +345,8 @@ export interface FileRouteTypes {
     | '/admin/fastigheter'
     | '/admin/installningar'
     | '/admin/kommunikation'
+    | '/admin/meddelanden'
+    | '/admin/moten'
     | '/admin/underhall'
     | '/app/boende'
     | '/app/bokningar'
@@ -355,6 +376,8 @@ export interface FileRouteTypes {
     | '/admin/fastigheter'
     | '/admin/installningar'
     | '/admin/kommunikation'
+    | '/admin/meddelanden'
+    | '/admin/moten'
     | '/admin/underhall'
     | '/app/boende'
     | '/app/bokningar'
@@ -388,6 +411,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/fastigheter'
     | '/_authenticated/admin/installningar'
     | '/_authenticated/admin/kommunikation'
+    | '/_authenticated/admin/meddelanden'
+    | '/_authenticated/admin/moten'
     | '/_authenticated/admin/underhall'
     | '/_authenticated/app/boende'
     | '/_authenticated/app/bokningar'
@@ -513,6 +538,20 @@ declare module '@tanstack/react-router' {
       path: '/kommunikation'
       fullPath: '/admin/kommunikation'
       preLoaderRoute: typeof AuthenticatedAdminKommunikationRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/meddelanden': {
+      id: '/_authenticated/admin/meddelanden'
+      path: '/meddelanden'
+      fullPath: '/admin/meddelanden'
+      preLoaderRoute: typeof AuthenticatedAdminMeddelandenRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/moten': {
+      id: '/_authenticated/admin/moten'
+      path: '/moten'
+      fullPath: '/admin/moten'
+      preLoaderRoute: typeof AuthenticatedAdminMotenRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/underhall': {
@@ -644,6 +683,8 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminFastigheterRoute: typeof AuthenticatedAdminFastigheterRoute
   AuthenticatedAdminInstallningarRoute: typeof AuthenticatedAdminInstallningarRoute
   AuthenticatedAdminKommunikationRoute: typeof AuthenticatedAdminKommunikationRoute
+  AuthenticatedAdminMeddelandenRoute: typeof AuthenticatedAdminMeddelandenRoute
+  AuthenticatedAdminMotenRoute: typeof AuthenticatedAdminMotenRoute
   AuthenticatedAdminUnderhallRoute: typeof AuthenticatedAdminUnderhallRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminArendenIdRoute: typeof AuthenticatedAdminArendenIdRoute
@@ -659,6 +700,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminFastigheterRoute: AuthenticatedAdminFastigheterRoute,
   AuthenticatedAdminInstallningarRoute: AuthenticatedAdminInstallningarRoute,
   AuthenticatedAdminKommunikationRoute: AuthenticatedAdminKommunikationRoute,
+  AuthenticatedAdminMeddelandenRoute: AuthenticatedAdminMeddelandenRoute,
+  AuthenticatedAdminMotenRoute: AuthenticatedAdminMotenRoute,
   AuthenticatedAdminUnderhallRoute: AuthenticatedAdminUnderhallRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminArendenIdRoute: AuthenticatedAdminArendenIdRoute,

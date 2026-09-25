@@ -111,19 +111,27 @@ function MeetingsPage() {
           ) : (
             <ul className="space-y-3">
               {past.map((m) => (
-                <li
-                  key={m.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-4"
-                >
-                  <div>
-                    <p className="text-sm font-medium">{m.title}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{dateLong(m.starts_at)}</p>
-                  </div>
-                  {m.protocol_url ? (
-                    <StatusPill tone="success">Protokoll finns</StatusPill>
-                  ) : (
-                    <StatusPill tone="neutral">Protokoll saknas</StatusPill>
-                  )}
+                <li key={m.id} className="rounded-xl border border-border p-4">
+                  <details className="group">
+                    <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium">{m.title}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {dateLong(m.starts_at)}
+                        </p>
+                      </div>
+                      {m.protocol ? (
+                        <StatusPill tone="success">Läs protokollet</StatusPill>
+                      ) : (
+                        <StatusPill tone="neutral">Protokoll saknas</StatusPill>
+                      )}
+                    </summary>
+                    {m.protocol ? (
+                      <p className="mt-4 border-t border-border pt-4 text-sm whitespace-pre-line text-muted-foreground">
+                        {m.protocol}
+                      </p>
+                    ) : null}
+                  </details>
                 </li>
               ))}
             </ul>

@@ -263,7 +263,11 @@ export const addRequestComment = createServerFn({ method: "POST" })
         request_id: data.requestId,
         author_user_id: context.userId,
         author_name: me.profile?.full_name ?? "Boende",
-        author_role: me.isStaff ? "staff" : me.isContractor ? "contractor" : "resident",
+        author_role: me.isStaff
+          ? senderRole(me.roles)
+          : me.isContractor
+            ? "contractor"
+            : "resident",
         body: data.body.trim(),
       });
       if (error) throw new Error(error.message);
@@ -492,6 +496,8 @@ export const sendMessage = createServerFn({ method: "POST" })
       subject: shortText.optional(),
       body: longText.trim().min(1),
       requestId: id.optional(),
+      /** Personal: vilken boende tråden gäller. */
+      residentUserId: id.optional(),
     }),
   )
   .middleware([requireSupabaseAuth])
@@ -500,19 +506,61 @@ export const sendMessage = createServerFn({ method: "POST" })
     const me = await loadMe(supabase, context.userId);
     const orgId = me.profile?.organization_id;
     if (!orgId) throw new Error("Ingen organisation");
+    const staff = hasPermission(me.roles, "messages.edit");
+
+    if (!staff && data.threadKey !== `resident:${context.userId}`) {
+      // Boende får bara skriva i trådar de redan är del av.
+      const { count } = await supabase
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("thread_key", data.threadKey)
+        .eq("resident_user_id", context.userId);
+      if (!count) throw new Error("Tråden hittades inte");
+    }
+
     const { error } = await supabase.from("messages").insert({
       organization_id: orgId,
       thread_key: data.threadKey,
       subject: data.subject ?? null,
       request_id: data.requestId ?? null,
-      resident_user_id: me.isStaff ? null : context.userId,
+      resident_user_id: staff ? (data.residentUserId ?? null) : context.userId,
       sender_user_id: context.userId,
       sender_name: me.profile?.full_name ?? "Boende",
-      sender_role: me.isStaff ? "staff" : "resident",
+      sender_role: staff ? senderRole(me.roles) : "resident",
       body: data.body,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+/** Hur personal presenteras i meddelanden och kommentarer. */
+function senderRole(roles: string[]) {
+  if (["org_admin", "property_manager", "staff", "super_admin"].some((r) => roles.includes(r))) {
+    return "staff";
+  }
+  return roles.includes("board_member") ? "board_member" : "staff";
+}
+
+export const getAdminMessages = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "messages.edit");
+    const [messages, residents] = await Promise.all([
+      supabase
+        .from("messages")
+        .select("*")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("residencies")
+        .select("id, resident_name, user_id, units(unit_number, address)")
+        .eq("organization_id", orgId)
+        .eq("status", "active")
+        .not("user_id", "is", null)
+        .order("resident_name"),
+    ]);
+    return { messages: messages.data ?? [], residents: residents.data ?? [] };
   });
 
 /* ------------------------------ ADMIN -------------------------------- */
@@ -1191,5 +1239,79 @@ export const updateContractorJob = createServerFn({ method: "POST" })
       });
       if (error) throw new Error(error.message);
     }
+    return { ok: true };
+  });
+
+/* ------------------------------- MÖTEN ------------------------------- */
+
+const meetingType = z.enum(["annual", "extra", "info", "board"]);
+export type MeetingType = z.infer<typeof meetingType>;
+
+export const getAdminMeetings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "meetings.edit");
+    const [meetings, attendance] = await Promise.all([
+      supabase
+        .from("meetings")
+        .select("*")
+        .eq("organization_id", orgId)
+        .order("starts_at", { ascending: false }),
+      supabase
+        .from("meeting_attendance")
+        .select("meeting_id, attendee_name, status, created_at")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: true }),
+    ]);
+    return { meetings: meetings.data ?? [], attendance: attendance.data ?? [] };
+  });
+
+export const saveMeeting = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      id: id.optional(),
+      title: shortText.min(1),
+      meetingType,
+      startsAt: z.string().datetime({ offset: true }),
+      location: shortText.optional(),
+      agenda: longText.optional(),
+      motions: longText.optional(),
+      protocol: longText.optional(),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "meetings.edit");
+    const row = {
+      organization_id: orgId,
+      title: data.title,
+      meeting_type: data.meetingType,
+      starts_at: data.startsAt,
+      location: data.location || null,
+      agenda: data.agenda || null,
+      motions: data.motions || null,
+      protocol: data.protocol || null,
+    };
+    const { error } = data.id
+      ? await supabase.from("meetings").update(row).eq("id", data.id).eq("organization_id", orgId)
+      : await supabase.from("meetings").insert(row);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteMeeting = createServerFn({ method: "POST" })
+  .inputValidator(byIdSchema)
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "meetings.edit");
+    const { error } = await supabase
+      .from("meetings")
+      .delete()
+      .eq("id", data.id)
+      .eq("organization_id", orgId);
+    if (error) throw new Error(error.message);
     return { ok: true };
   });

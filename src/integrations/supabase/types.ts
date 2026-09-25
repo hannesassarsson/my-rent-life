@@ -610,6 +610,7 @@ export type Database = {
       };
       meetings: {
         Row: {
+          protocol: string | null;
           agenda: string | null;
           created_at: string;
           id: string;
@@ -622,6 +623,7 @@ export type Database = {
           title: string;
         };
         Insert: {
+          protocol?: string | null;
           agenda?: string | null;
           created_at?: string;
           id?: string;
@@ -634,6 +636,7 @@ export type Database = {
           title: string;
         };
         Update: {
+          protocol?: string | null;
           agenda?: string | null;
           created_at?: string;
           id?: string;
