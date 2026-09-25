@@ -115,7 +115,7 @@ export function parseCamt054(content: string): ParsedBankFile {
 }
 
 export function parseBankFile(content: string): ParsedBankFile {
-  const text = content.replace(/^﻿/, "");
+  const text = content.replace(/^\uFEFF/, "");
   if (text.startsWith("01BGMAX")) return parseBgMax(text);
   if (/camt\.054/.test(text)) return parseCamt054(text);
   throw new Error("Okänt filformat. Använd BgMax (.txt) eller camt.054 (.xml) från banken.");
