@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -10,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/app-shell";
 import { requestPasswordReset, startDemo, type DemoKind } from "@/lib/public.functions";
+import { getBankIdAvailability } from "@/lib/bankid.functions";
+import { BankIdLoginButton, useBankIdResultToast } from "@/components/bankid";
 
 const DEMO_ROLES: { kind: DemoKind; label: string; description: string; to: string }[] = [
   { kind: "resident", label: "Boende", description: "Avgift, felanmälan, bokningar", to: "/app" },
@@ -70,6 +73,13 @@ function AuthPage() {
   const startDemoFn = useServerFn(startDemo);
   const resetFn = useServerFn(requestPasswordReset);
   const [mode, setMode] = useState<"login" | "reset" | "sent">("login");
+  const bankIdFn = useServerFn(getBankIdAvailability);
+  const { data: bankId } = useQuery({
+    queryKey: ["bankid-availability"],
+    queryFn: () => bankIdFn(),
+    staleTime: 5 * 60_000,
+  });
+  useBankIdResultToast();
 
   async function sendReset(e: React.FormEvent) {
     e.preventDefault();
@@ -184,43 +194,63 @@ function AuthPage() {
               </button>
             </form>
           ) : (
-            <form onSubmit={submit} className="mt-8 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">E-post</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Lösenord</Label>
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline-offset-4 hover:underline"
-                    onClick={() => setMode("reset")}
-                  >
-                    Glömt lösenord?
-                  </button>
+            <>
+              {bankId?.configured ? (
+                <div className="mt-8">
+                  <BankIdLoginButton redirect={redirect} disabled={busy} />
+                  <div className="mt-6 flex items-center gap-3 text-xs text-muted-foreground">
+                    <span className="h-px flex-1 bg-border" />
+                    eller med e-post
+                    <span className="h-px flex-1 bg-border" />
+                  </div>
                 </div>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  minLength={8}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={busy}>
-                Logga in
-              </Button>
-            </form>
+              ) : null}
+              <form
+                onSubmit={submit}
+                className={bankId?.configured ? "mt-6 space-y-4" : "mt-8 space-y-4"}
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-post</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Lösenord</Label>
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+                      onClick={() => setMode("reset")}
+                    >
+                      Glömt lösenord?
+                    </button>
+                  </div>
+                  <Input
+                    id="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    minLength={8}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  variant={bankId?.configured ? "outline" : "default"}
+                  className="w-full"
+                  disabled={busy}
+                >
+                  Logga in
+                </Button>
+              </form>
+            </>
           )}
 
           <p className="mt-6 text-sm text-muted-foreground">

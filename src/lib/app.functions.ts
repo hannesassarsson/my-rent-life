@@ -11,6 +11,7 @@ import {
   priorityLabels,
   requestStatusLabels,
 } from "@/lib/format";
+import { deliverQueued, deliverQueuedOccasionally } from "@/lib/delivery.server";
 
 type Db = SupabaseClient<Database>;
 
@@ -143,7 +144,11 @@ function bookingErrorMessage(error: { code?: string; message: string }) {
 
 export const getMe = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => loadMe(context.supabase as Db, context.userId));
+  .handler(async ({ context }) => {
+    // Omförsök av utskick görs i bakgrunden när appen används.
+    void deliverQueuedOccasionally();
+    return loadMe(context.supabase as Db, context.userId);
+  });
 
 /* ------------------------------- BOENDE ------------------------------- */
 
@@ -634,6 +639,7 @@ export const sendMessage = createServerFn({ method: "POST" })
           link: "/app/meddelanden",
         }),
       );
+      await deliverQueued();
     }
     return { ok: true };
   });
@@ -648,6 +654,7 @@ async function notifyReporter(supabase: Db, requestId: string, title: string, bo
       _body: body,
     }),
   );
+  await deliverQueued();
 }
 
 /** Notis till alla medlemmar i organisationen utom avsändaren. */
@@ -669,6 +676,7 @@ async function notifyMembers(
       .from("notifications")
       .insert(members.map((m) => ({ organization_id: orgId, user_id: m.id, ...notification }))),
   );
+  await deliverQueued();
 }
 
 /** Hur personal presenteras i meddelanden och kommentarer. */
@@ -1779,6 +1787,7 @@ export const sendReminders = createServerFn({ method: "POST" })
     if (notifications.length > 0) {
       const { error: notifyError } = await supabase.from("notifications").insert(notifications);
       if (notifyError) throw new Error(notifyError.message);
+      await deliverQueued();
     }
     return { reminded: payments.length, notified: notifications.length };
   });
@@ -2079,6 +2088,7 @@ async function notifyAffectedResidents(
     .from("notifications")
     .insert(userIds.map((user_id) => ({ organization_id: orgId, user_id, ...notification })));
   if (notifyError) throw new Error(notifyError.message);
+  await deliverQueued();
 }
 
 export const getAdminInspections = createServerFn({ method: "GET" })

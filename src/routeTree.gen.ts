@@ -17,7 +17,9 @@ import { Route as PriserRouteImport } from './routes/priser'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedEntreprenorRouteImport } from './routes/_authenticated/entreprenor'
+import { Route as ApiUtskickRouteImport } from './routes/api.utskick'
 import { Route as AuthAterstallRouteImport } from './routes/auth_.aterstall'
+import { Route as AuthBankidRouteImport } from './routes/auth_.bankid'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminAbonnemangRouteImport } from './routes/_authenticated/admin.abonnemang'
 import { Route as AuthenticatedAdminBesiktningarRouteImport } from './routes/_authenticated/admin.besiktningar'
@@ -32,6 +34,7 @@ import { Route as AuthenticatedAdminKommunikationRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminMeddelandenRouteImport } from './routes/_authenticated/admin.meddelanden'
 import { Route as AuthenticatedAdminMotenRouteImport } from './routes/_authenticated/admin.moten'
 import { Route as AuthenticatedAdminPassersystemRouteImport } from './routes/_authenticated/admin.passersystem'
+import { Route as AuthenticatedAdminProfilRouteImport } from './routes/_authenticated/admin.profil'
 import { Route as AuthenticatedAdminUnderhallRouteImport } from './routes/_authenticated/admin.underhall'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppBoendeRouteImport } from './routes/_authenticated/app.boende'
@@ -42,9 +45,13 @@ import { Route as AuthenticatedAppInformationRouteImport } from './routes/_authe
 import { Route as AuthenticatedAppMeddelandenRouteImport } from './routes/_authenticated/app.meddelanden'
 import { Route as AuthenticatedAppMotenRouteImport } from './routes/_authenticated/app.moten'
 import { Route as AuthenticatedAppNycklarRouteImport } from './routes/_authenticated/app.nycklar'
+import { Route as AuthenticatedAppProfilRouteImport } from './routes/_authenticated/app.profil'
 import { Route as AuthenticatedEntreprenorIndexRouteImport } from './routes/_authenticated/entreprenor.index'
 import { Route as AuthenticatedEntreprenorIdRouteImport } from './routes/_authenticated/entreprenor.$id'
+import { Route as AuthenticatedEntreprenorProfilRouteImport } from './routes/_authenticated/entreprenor.profil'
 import { Route as AuthenticatedNDoorIdRouteImport } from './routes/_authenticated/n.$doorId'
+import { Route as ApiBankidCallbackRouteImport } from './routes/api.bankid.callback'
+import { Route as ApiBankidStartRouteImport } from './routes/api.bankid.start'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhook'
 import { Route as AuthenticatedAdminArendenIndexRouteImport } from './routes/_authenticated/admin.arenden.index'
 import { Route as AuthenticatedAdminArendenIdRouteImport } from './routes/_authenticated/admin.arenden.$id'
@@ -93,9 +100,19 @@ const AuthenticatedEntreprenorRoute =
     path: '/entreprenor',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiUtskickRoute = ApiUtskickRouteImport.update({
+  id: '/api/utskick',
+  path: '/api/utskick',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthAterstallRoute = AuthAterstallRouteImport.update({
   id: '/auth_/aterstall',
   path: '/auth/aterstall',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthBankidRoute = AuthBankidRouteImport.update({
+  id: '/auth_/bankid',
+  path: '/auth/bankid',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -180,6 +197,12 @@ const AuthenticatedAdminPassersystemRoute =
     path: '/passersystem',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminProfilRoute =
+  AuthenticatedAdminProfilRouteImport.update({
+    id: '/profil',
+    path: '/profil',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminUnderhallRoute =
   AuthenticatedAdminUnderhallRouteImport.update({
     id: '/underhall',
@@ -235,6 +258,11 @@ const AuthenticatedAppNycklarRoute = AuthenticatedAppNycklarRouteImport.update({
   path: '/nycklar',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppProfilRoute = AuthenticatedAppProfilRouteImport.update({
+  id: '/profil',
+  path: '/profil',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedEntreprenorIndexRoute =
   AuthenticatedEntreprenorIndexRouteImport.update({
     id: '/',
@@ -247,10 +275,26 @@ const AuthenticatedEntreprenorIdRoute =
     path: '/$id',
     getParentRoute: () => AuthenticatedEntreprenorRoute,
   } as any)
+const AuthenticatedEntreprenorProfilRoute =
+  AuthenticatedEntreprenorProfilRouteImport.update({
+    id: '/profil',
+    path: '/profil',
+    getParentRoute: () => AuthenticatedEntreprenorRoute,
+  } as any)
 const AuthenticatedNDoorIdRoute = AuthenticatedNDoorIdRouteImport.update({
   id: '/n/$doorId',
   path: '/n/$doorId',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiBankidCallbackRoute = ApiBankidCallbackRouteImport.update({
+  id: '/api/bankid/callback',
+  path: '/api/bankid/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBankidStartRoute = ApiBankidStartRouteImport.update({
+  id: '/api/bankid/start',
+  path: '/api/bankid/start',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   id: '/api/stripe/webhook',
@@ -302,7 +346,9 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/entreprenor': typeof AuthenticatedEntreprenorRouteWithChildren
+  '/api/utskick': typeof ApiUtskickRoute
   '/auth/aterstall': typeof AuthAterstallRoute
+  '/auth/bankid': typeof AuthBankidRoute
   '/admin/abonnemang': typeof AuthenticatedAdminAbonnemangRoute
   '/admin/besiktningar': typeof AuthenticatedAdminBesiktningarRoute
   '/admin/bokningar': typeof AuthenticatedAdminBokningarRoute
@@ -316,6 +362,7 @@ export interface FileRoutesByFullPath {
   '/admin/meddelanden': typeof AuthenticatedAdminMeddelandenRoute
   '/admin/moten': typeof AuthenticatedAdminMotenRoute
   '/admin/passersystem': typeof AuthenticatedAdminPassersystemRoute
+  '/admin/profil': typeof AuthenticatedAdminProfilRoute
   '/admin/underhall': typeof AuthenticatedAdminUnderhallRoute
   '/app/boende': typeof AuthenticatedAppBoendeRoute
   '/app/bokningar': typeof AuthenticatedAppBokningarRoute
@@ -325,8 +372,12 @@ export interface FileRoutesByFullPath {
   '/app/meddelanden': typeof AuthenticatedAppMeddelandenRoute
   '/app/moten': typeof AuthenticatedAppMotenRoute
   '/app/nycklar': typeof AuthenticatedAppNycklarRoute
+  '/app/profil': typeof AuthenticatedAppProfilRoute
   '/entreprenor/$id': typeof AuthenticatedEntreprenorIdRoute
+  '/entreprenor/profil': typeof AuthenticatedEntreprenorProfilRoute
   '/n/$doorId': typeof AuthenticatedNDoorIdRoute
+  '/api/bankid/callback': typeof ApiBankidCallbackRoute
+  '/api/bankid/start': typeof ApiBankidStartRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
@@ -343,7 +394,9 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/boka-demo': typeof BokaDemoRoute
   '/priser': typeof PriserRoute
+  '/api/utskick': typeof ApiUtskickRoute
   '/auth/aterstall': typeof AuthAterstallRoute
+  '/auth/bankid': typeof AuthBankidRoute
   '/admin/abonnemang': typeof AuthenticatedAdminAbonnemangRoute
   '/admin/besiktningar': typeof AuthenticatedAdminBesiktningarRoute
   '/admin/bokningar': typeof AuthenticatedAdminBokningarRoute
@@ -357,6 +410,7 @@ export interface FileRoutesByTo {
   '/admin/meddelanden': typeof AuthenticatedAdminMeddelandenRoute
   '/admin/moten': typeof AuthenticatedAdminMotenRoute
   '/admin/passersystem': typeof AuthenticatedAdminPassersystemRoute
+  '/admin/profil': typeof AuthenticatedAdminProfilRoute
   '/admin/underhall': typeof AuthenticatedAdminUnderhallRoute
   '/app/boende': typeof AuthenticatedAppBoendeRoute
   '/app/bokningar': typeof AuthenticatedAppBokningarRoute
@@ -366,8 +420,12 @@ export interface FileRoutesByTo {
   '/app/meddelanden': typeof AuthenticatedAppMeddelandenRoute
   '/app/moten': typeof AuthenticatedAppMotenRoute
   '/app/nycklar': typeof AuthenticatedAppNycklarRoute
+  '/app/profil': typeof AuthenticatedAppProfilRoute
   '/entreprenor/$id': typeof AuthenticatedEntreprenorIdRoute
+  '/entreprenor/profil': typeof AuthenticatedEntreprenorProfilRoute
   '/n/$doorId': typeof AuthenticatedNDoorIdRoute
+  '/api/bankid/callback': typeof ApiBankidCallbackRoute
+  '/api/bankid/start': typeof ApiBankidStartRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
@@ -389,7 +447,9 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/entreprenor': typeof AuthenticatedEntreprenorRouteWithChildren
+  '/api/utskick': typeof ApiUtskickRoute
   '/auth_/aterstall': typeof AuthAterstallRoute
+  '/auth_/bankid': typeof AuthBankidRoute
   '/_authenticated/admin/abonnemang': typeof AuthenticatedAdminAbonnemangRoute
   '/_authenticated/admin/besiktningar': typeof AuthenticatedAdminBesiktningarRoute
   '/_authenticated/admin/bokningar': typeof AuthenticatedAdminBokningarRoute
@@ -403,6 +463,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/meddelanden': typeof AuthenticatedAdminMeddelandenRoute
   '/_authenticated/admin/moten': typeof AuthenticatedAdminMotenRoute
   '/_authenticated/admin/passersystem': typeof AuthenticatedAdminPassersystemRoute
+  '/_authenticated/admin/profil': typeof AuthenticatedAdminProfilRoute
   '/_authenticated/admin/underhall': typeof AuthenticatedAdminUnderhallRoute
   '/_authenticated/app/boende': typeof AuthenticatedAppBoendeRoute
   '/_authenticated/app/bokningar': typeof AuthenticatedAppBokningarRoute
@@ -412,8 +473,12 @@ export interface FileRoutesById {
   '/_authenticated/app/meddelanden': typeof AuthenticatedAppMeddelandenRoute
   '/_authenticated/app/moten': typeof AuthenticatedAppMotenRoute
   '/_authenticated/app/nycklar': typeof AuthenticatedAppNycklarRoute
+  '/_authenticated/app/profil': typeof AuthenticatedAppProfilRoute
   '/_authenticated/entreprenor/$id': typeof AuthenticatedEntreprenorIdRoute
+  '/_authenticated/entreprenor/profil': typeof AuthenticatedEntreprenorProfilRoute
   '/_authenticated/n/$doorId': typeof AuthenticatedNDoorIdRoute
+  '/api/bankid/callback': typeof ApiBankidCallbackRoute
+  '/api/bankid/start': typeof ApiBankidStartRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
@@ -435,7 +500,9 @@ export interface FileRouteTypes {
     | '/admin'
     | '/app'
     | '/entreprenor'
+    | '/api/utskick'
     | '/auth/aterstall'
+    | '/auth/bankid'
     | '/admin/abonnemang'
     | '/admin/besiktningar'
     | '/admin/bokningar'
@@ -449,6 +516,7 @@ export interface FileRouteTypes {
     | '/admin/meddelanden'
     | '/admin/moten'
     | '/admin/passersystem'
+    | '/admin/profil'
     | '/admin/underhall'
     | '/app/boende'
     | '/app/bokningar'
@@ -458,8 +526,12 @@ export interface FileRouteTypes {
     | '/app/meddelanden'
     | '/app/moten'
     | '/app/nycklar'
+    | '/app/profil'
     | '/entreprenor/$id'
+    | '/entreprenor/profil'
     | '/n/$doorId'
+    | '/api/bankid/callback'
+    | '/api/bankid/start'
     | '/api/stripe/webhook'
     | '/admin/'
     | '/app/'
@@ -476,7 +548,9 @@ export interface FileRouteTypes {
     | '/auth'
     | '/boka-demo'
     | '/priser'
+    | '/api/utskick'
     | '/auth/aterstall'
+    | '/auth/bankid'
     | '/admin/abonnemang'
     | '/admin/besiktningar'
     | '/admin/bokningar'
@@ -490,6 +564,7 @@ export interface FileRouteTypes {
     | '/admin/meddelanden'
     | '/admin/moten'
     | '/admin/passersystem'
+    | '/admin/profil'
     | '/admin/underhall'
     | '/app/boende'
     | '/app/bokningar'
@@ -499,8 +574,12 @@ export interface FileRouteTypes {
     | '/app/meddelanden'
     | '/app/moten'
     | '/app/nycklar'
+    | '/app/profil'
     | '/entreprenor/$id'
+    | '/entreprenor/profil'
     | '/n/$doorId'
+    | '/api/bankid/callback'
+    | '/api/bankid/start'
     | '/api/stripe/webhook'
     | '/admin'
     | '/app'
@@ -521,7 +600,9 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/app'
     | '/_authenticated/entreprenor'
+    | '/api/utskick'
     | '/auth_/aterstall'
+    | '/auth_/bankid'
     | '/_authenticated/admin/abonnemang'
     | '/_authenticated/admin/besiktningar'
     | '/_authenticated/admin/bokningar'
@@ -535,6 +616,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/meddelanden'
     | '/_authenticated/admin/moten'
     | '/_authenticated/admin/passersystem'
+    | '/_authenticated/admin/profil'
     | '/_authenticated/admin/underhall'
     | '/_authenticated/app/boende'
     | '/_authenticated/app/bokningar'
@@ -544,8 +626,12 @@ export interface FileRouteTypes {
     | '/_authenticated/app/meddelanden'
     | '/_authenticated/app/moten'
     | '/_authenticated/app/nycklar'
+    | '/_authenticated/app/profil'
     | '/_authenticated/entreprenor/$id'
+    | '/_authenticated/entreprenor/profil'
     | '/_authenticated/n/$doorId'
+    | '/api/bankid/callback'
+    | '/api/bankid/start'
     | '/api/stripe/webhook'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
@@ -564,7 +650,11 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   BokaDemoRoute: typeof BokaDemoRoute
   PriserRoute: typeof PriserRoute
+  ApiUtskickRoute: typeof ApiUtskickRoute
   AuthAterstallRoute: typeof AuthAterstallRoute
+  AuthBankidRoute: typeof AuthBankidRoute
+  ApiBankidCallbackRoute: typeof ApiBankidCallbackRoute
+  ApiBankidStartRoute: typeof ApiBankidStartRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
 }
 
@@ -626,11 +716,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEntreprenorRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/utskick': {
+      id: '/api/utskick'
+      path: '/api/utskick'
+      fullPath: '/api/utskick'
+      preLoaderRoute: typeof ApiUtskickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth_/aterstall': {
       id: '/auth_/aterstall'
       path: '/auth/aterstall'
       fullPath: '/auth/aterstall'
       preLoaderRoute: typeof AuthAterstallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth_/bankid': {
+      id: '/auth_/bankid'
+      path: '/auth/bankid'
+      fullPath: '/auth/bankid'
+      preLoaderRoute: typeof AuthBankidRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -731,6 +835,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPassersystemRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/profil': {
+      id: '/_authenticated/admin/profil'
+      path: '/profil'
+      fullPath: '/admin/profil'
+      preLoaderRoute: typeof AuthenticatedAdminProfilRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/underhall': {
       id: '/_authenticated/admin/underhall'
       path: '/underhall'
@@ -801,6 +912,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppNycklarRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/profil': {
+      id: '/_authenticated/app/profil'
+      path: '/profil'
+      fullPath: '/app/profil'
+      preLoaderRoute: typeof AuthenticatedAppProfilRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/entreprenor/': {
       id: '/_authenticated/entreprenor/'
       path: '/'
@@ -815,12 +933,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEntreprenorIdRouteImport
       parentRoute: typeof AuthenticatedEntreprenorRoute
     }
+    '/_authenticated/entreprenor/profil': {
+      id: '/_authenticated/entreprenor/profil'
+      path: '/profil'
+      fullPath: '/entreprenor/profil'
+      preLoaderRoute: typeof AuthenticatedEntreprenorProfilRouteImport
+      parentRoute: typeof AuthenticatedEntreprenorRoute
+    }
     '/_authenticated/n/$doorId': {
       id: '/_authenticated/n/$doorId'
       path: '/n/$doorId'
       fullPath: '/n/$doorId'
       preLoaderRoute: typeof AuthenticatedNDoorIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/bankid/callback': {
+      id: '/api/bankid/callback'
+      path: '/api/bankid/callback'
+      fullPath: '/api/bankid/callback'
+      preLoaderRoute: typeof ApiBankidCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bankid/start': {
+      id: '/api/bankid/start'
+      path: '/api/bankid/start'
+      fullPath: '/api/bankid/start'
+      preLoaderRoute: typeof ApiBankidStartRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/stripe/webhook': {
       id: '/api/stripe/webhook'
@@ -888,6 +1027,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminMeddelandenRoute: typeof AuthenticatedAdminMeddelandenRoute
   AuthenticatedAdminMotenRoute: typeof AuthenticatedAdminMotenRoute
   AuthenticatedAdminPassersystemRoute: typeof AuthenticatedAdminPassersystemRoute
+  AuthenticatedAdminProfilRoute: typeof AuthenticatedAdminProfilRoute
   AuthenticatedAdminUnderhallRoute: typeof AuthenticatedAdminUnderhallRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminArendenIdRoute: typeof AuthenticatedAdminArendenIdRoute
@@ -910,6 +1050,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminMeddelandenRoute: AuthenticatedAdminMeddelandenRoute,
   AuthenticatedAdminMotenRoute: AuthenticatedAdminMotenRoute,
   AuthenticatedAdminPassersystemRoute: AuthenticatedAdminPassersystemRoute,
+  AuthenticatedAdminProfilRoute: AuthenticatedAdminProfilRoute,
   AuthenticatedAdminUnderhallRoute: AuthenticatedAdminUnderhallRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminArendenIdRoute: AuthenticatedAdminArendenIdRoute,
@@ -930,6 +1071,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppMeddelandenRoute: typeof AuthenticatedAppMeddelandenRoute
   AuthenticatedAppMotenRoute: typeof AuthenticatedAppMotenRoute
   AuthenticatedAppNycklarRoute: typeof AuthenticatedAppNycklarRoute
+  AuthenticatedAppProfilRoute: typeof AuthenticatedAppProfilRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
   AuthenticatedAppFelanmalanIdRoute: typeof AuthenticatedAppFelanmalanIdRoute
   AuthenticatedAppFelanmalanIndexRoute: typeof AuthenticatedAppFelanmalanIndexRoute
@@ -944,6 +1086,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppMeddelandenRoute: AuthenticatedAppMeddelandenRoute,
   AuthenticatedAppMotenRoute: AuthenticatedAppMotenRoute,
   AuthenticatedAppNycklarRoute: AuthenticatedAppNycklarRoute,
+  AuthenticatedAppProfilRoute: AuthenticatedAppProfilRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
   AuthenticatedAppFelanmalanIdRoute: AuthenticatedAppFelanmalanIdRoute,
   AuthenticatedAppFelanmalanIndexRoute: AuthenticatedAppFelanmalanIndexRoute,
@@ -954,12 +1097,14 @@ const AuthenticatedAppRouteWithChildren =
 
 interface AuthenticatedEntreprenorRouteChildren {
   AuthenticatedEntreprenorIdRoute: typeof AuthenticatedEntreprenorIdRoute
+  AuthenticatedEntreprenorProfilRoute: typeof AuthenticatedEntreprenorProfilRoute
   AuthenticatedEntreprenorIndexRoute: typeof AuthenticatedEntreprenorIndexRoute
 }
 
 const AuthenticatedEntreprenorRouteChildren: AuthenticatedEntreprenorRouteChildren =
   {
     AuthenticatedEntreprenorIdRoute: AuthenticatedEntreprenorIdRoute,
+    AuthenticatedEntreprenorProfilRoute: AuthenticatedEntreprenorProfilRoute,
     AuthenticatedEntreprenorIndexRoute: AuthenticatedEntreprenorIndexRoute,
   }
 
@@ -991,7 +1136,11 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   BokaDemoRoute: BokaDemoRoute,
   PriserRoute: PriserRoute,
+  ApiUtskickRoute: ApiUtskickRoute,
   AuthAterstallRoute: AuthAterstallRoute,
+  AuthBankidRoute: AuthBankidRoute,
+  ApiBankidCallbackRoute: ApiBankidCallbackRoute,
+  ApiBankidStartRoute: ApiBankidStartRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
 }
 export const routeTree = rootRouteImport

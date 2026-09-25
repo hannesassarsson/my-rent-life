@@ -113,3 +113,27 @@ export function InspectionStatusPill({
     inspectionResultLabels[result as keyof typeof inspectionResultLabels] ?? "Genomförd";
   return <StatusPill tone={inspectionResultTones[result ?? ""] ?? "neutral"}>{label}</StatusPill>;
 }
+
+const deliveryTone: Record<string, Tone> = {
+  pending: "info",
+  sending: "info",
+  sent: "success",
+  failed: "danger",
+  skipped: "neutral",
+};
+
+export const deliveryStatusLabels: Record<string, string> = {
+  pending: "I kö",
+  sending: "Skickas",
+  sent: "Skickat",
+  failed: "Misslyckades",
+  skipped: "Skickades inte",
+};
+
+export function DeliveryStatusPill({ status }: { status: string }) {
+  return (
+    <StatusPill tone={deliveryTone[status] ?? "neutral"}>
+      {deliveryStatusLabels[status] ?? status}
+    </StatusPill>
+  );
+}

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import { loadMe, requirePermission } from "@/lib/app.functions";
+import { deliverQueued } from "@/lib/delivery.server";
 
 // Digitala nycklar. Behörigheten prövas i databasen (unlock_door), som också
 // loggar passagen. I en riktig installation anropar servern därefter
@@ -243,6 +244,7 @@ export const issueKey = createServerFn({ method: "POST" })
         link: "/app/nycklar",
       });
       if (notifyError) console.error("Notis:", notifyError.message);
+      else await deliverQueued();
     }
     return { ok: true };
   });

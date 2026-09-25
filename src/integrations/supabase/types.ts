@@ -943,6 +943,7 @@ export type Database = {
       organizations: {
         Row: {
           org_number: string | null;
+          sms_enabled: boolean;
           bankgiro: string | null;
           created_at: string;
           id: string;
@@ -952,6 +953,7 @@ export type Database = {
         };
         Insert: {
           org_number?: string | null;
+          sms_enabled?: boolean;
           bankgiro?: string | null;
           created_at?: string;
           id?: string;
@@ -961,6 +963,7 @@ export type Database = {
         };
         Update: {
           org_number?: string | null;
+          sms_enabled?: boolean;
           bankgiro?: string | null;
           created_at?: string;
           id?: string;
@@ -1282,6 +1285,89 @@ export type Database = {
           },
         ];
       };
+      notification_prefs: {
+        Row: {
+          user_id: string;
+          email_enabled: boolean;
+          sms_enabled: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          email_enabled?: boolean;
+          sms_enabled?: boolean;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          email_enabled?: boolean;
+          sms_enabled?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      notification_deliveries: {
+        Row: {
+          id: string;
+          notification_id: string;
+          organization_id: string;
+          user_id: string;
+          channel: string;
+          category: string;
+          recipient: string;
+          status: string;
+          attempts: number;
+          next_attempt_at: string;
+          claimed_at: string | null;
+          sent_at: string | null;
+          provider_id: string | null;
+          error: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          notification_id?: string;
+          organization_id?: string;
+          user_id?: string;
+          channel?: string;
+          category?: string;
+          recipient?: string;
+          status?: string;
+          attempts?: number;
+          next_attempt_at?: string;
+          claimed_at?: string | null;
+          sent_at?: string | null;
+          provider_id?: string | null;
+          error?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          notification_id?: string;
+          organization_id?: string;
+          user_id?: string;
+          channel?: string;
+          category?: string;
+          recipient?: string;
+          status?: string;
+          attempts?: number;
+          next_attempt_at?: string;
+          claimed_at?: string | null;
+          sent_at?: string | null;
+          provider_id?: string | null;
+          error?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notification_deliveries_notification_id_fkey";
+            columns: ["notification_id"];
+            isOneToOne: false;
+            referencedRelation: "notifications";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       subscriptions: {
         Row: {
           organization_id: string;
@@ -1456,6 +1542,58 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      notification_category: { Args: { _link: string }; Returns: string };
+      claim_notification_deliveries: {
+        Args: { _secret: string; _channels: string[]; _limit?: number };
+        Returns: {
+          id: string;
+          channel: string;
+          category: string;
+          recipient: string;
+          attempts: number;
+          title: string;
+          body: string | null;
+          link: string | null;
+          organization_name: string;
+        }[];
+      };
+      finish_notification_delivery: {
+        Args: {
+          _secret: string;
+          _id: string;
+          _ok: boolean;
+          _provider_id?: string | null;
+          _error?: string | null;
+          _retry?: boolean;
+        };
+        Returns: undefined;
+      };
+      link_bankid: {
+        Args: {
+          _secret: string;
+          _user_id: string;
+          _pnr_hash: string;
+          _hint: string;
+          _organization_id?: string | null;
+        };
+        Returns: string;
+      };
+      bankid_login: {
+        Args: { _secret: string; _pnr_hash: string };
+        Returns: { user_id: string; email: string }[];
+      };
+      my_bankid: { Args: never; Returns: Json };
+      unlink_my_bankid: { Args: never; Returns: undefined };
+      org_bankid_links: {
+        Args: { _user_ids: string[] };
+        Returns: {
+          user_id: string;
+          hint: string;
+          linked_at: string;
+          last_login_at: string | null;
+        }[];
+      };
+      unlink_member_bankid: { Args: { _user_id: string }; Returns: undefined };
       public_demo_stats: { Args: never; Returns: Json };
       ocr_check_digit: { Args: { _base: string }; Returns: number };
       unlock_door: { Args: { _door_id: string; _method?: string }; Returns: Json };

@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { getResidentDetail } from "@/lib/app.functions";
 import { ResidentActions } from "@/components/resident-actions";
+import { MemberBankId } from "@/components/bankid";
 import { StatusPill } from "@/components/status-badge";
 import { PageHeader, Panel, DataRow, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { PaymentStatusBadge, RequestStatusBadge } from "@/components/status-badge";
@@ -62,6 +63,7 @@ function ResidentDetail() {
             <DataRow label="Inflyttning" value={dateLong(data.residency.move_in_date)} />
             <DataRow label="Konto" value={data.residency.user_id ? "Aktiverat" : "Ej aktiverat"} />
           </dl>
+          {data.residency.user_id ? <MemberBankId userId={data.residency.user_id} /> : null}
         </Panel>
 
         <Panel title="Lägenheten">

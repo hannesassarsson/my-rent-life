@@ -10,7 +10,7 @@
 // i Stripes gränssnitt.
 
 import Stripe from "stripe";
-import { createClient } from "@supabase/supabase-js";
+import { serverDb } from "@/lib/server-db.server";
 
 import type { Database, Json } from "@/integrations/supabase/types";
 import {
@@ -204,23 +204,7 @@ export function billingDataFrom(sub: Stripe.Subscription): BillingData {
   };
 }
 
-function billingDb() {
-  const url = process.env["SUPABASE_URL"];
-  const key = process.env["SUPABASE_PUBLISHABLE_KEY"];
-  if (!url || !key) throw new Error("Tjänsten är inte konfigurerad.");
-  return createClient<Database>(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: {
-      // Publishable-nycklar skickas bara som apikey, inte som Bearer-token.
-      fetch: (input, init) => {
-        const headers = new Headers(init?.headers);
-        if (headers.get("Authorization") === `Bearer ${key}`) headers.delete("Authorization");
-        headers.set("apikey", key);
-        return fetch(input, { ...init, headers });
-      },
-    },
-  });
-}
+const billingDb = serverDb;
 
 /**
  * Sparar abonnemangsuppgifter. Databasen tar bara emot dem tillsammans med

@@ -98,7 +98,12 @@ select tests.expect_error($q$insert into public.bookings (organization_id, resou
 select tests.expect_error($q$insert into public.bookings (organization_id, resource_id, user_id, starts_at, ends_at) values ('11111111-1111-1111-1111-111111111111', '77777777-0000-0000-0000-000000000001', auth.uid(), (current_date + 2 + time '21:00') at time zone 'Europe/Stockholm', (current_date + 2 + time '23:00') at time zone 'Europe/Stockholm')$q$, '%är öppen%');
 select tests.expect_error($q$insert into public.bookings (organization_id, resource_id, user_id, starts_at, ends_at) values ('11111111-1111-1111-1111-111111111111', '77777777-0000-0000-0000-000000000001', auth.uid(), (current_date - 1 + time '08:00') at time zone 'Europe/Stockholm', (current_date - 1 + time '10:00') at time zone 'Europe/Stockholm')$q$, 'Tiden har redan passerat');
 select tests.expect_error($q$insert into public.bookings (organization_id, resource_id, user_id, starts_at, ends_at) values ('11111111-1111-1111-1111-111111111111', '77777777-0000-0000-0000-000000000001', auth.uid(), (current_date + 20 + time '08:00') at time zone 'Europe/Stockholm', (current_date + 20 + time '10:00') at time zone 'Europe/Stockholm')$q$, '%dagar i förväg');
--- Demodatan ger den boende en bokning ikväll; med ovanstående är det två aktiva.
+-- Demodatan ger den boende en bokning ikväll, som med ovanstående ger två
+-- aktiva. Sent på kvällen har den passerat; boka då ett pass till så att
+-- testet inte beror på tiden på dygnet.
+insert into public.bookings (organization_id, resource_id, user_id, starts_at, ends_at)
+select '11111111-1111-1111-1111-111111111111', '77777777-0000-0000-0000-000000000001', auth.uid(), (current_date + 4 + time '08:00') at time zone 'Europe/Stockholm', (current_date + 4 + time '10:00') at time zone 'Europe/Stockholm'
+where (select count(*) from public.bookings where user_id = auth.uid() and resource_id = '77777777-0000-0000-0000-000000000001' and ends_at > now()) < 2;
 select tests.expect_error($q$insert into public.bookings (organization_id, resource_id, user_id, starts_at, ends_at) values ('11111111-1111-1111-1111-111111111111', '77777777-0000-0000-0000-000000000001', auth.uid(), (current_date + 3 + time '08:00') at time zone 'Europe/Stockholm', (current_date + 3 + time '10:00') at time zone 'Europe/Stockholm')$q$, 'Du har redan%');
 -- Gästrummet är öppet 00:00–23:59 och bokas per dygn.
 select tests.expect_rows($q$insert into public.bookings (organization_id, resource_id, user_id, starts_at, ends_at) values ('11111111-1111-1111-1111-111111111111', '77777777-0000-0000-0000-000000000004', auth.uid(), (current_date + 5 + time '00:00') at time zone 'Europe/Stockholm', (current_date + 6 + time '00:00') at time zone 'Europe/Stockholm')$q$, 1);

@@ -30,7 +30,17 @@ export default defineConfig(({ command }) => ({
     }),
     // Nitro builds the deployable server. The preset is auto-detected on
     // Vercel/Netlify/Cloudflare, otherwise Node (override with NITRO_PRESET).
-    ...(command === "build" ? [nitro()] : []),
+    ...(command === "build"
+      ? [
+          nitro({
+            // Dagligt jobb på Vercel som skickar utskick som blivit liggande
+            // (de skickas annars direkt när notiserna skapas).
+            vercel: {
+              config: { version: 3, crons: [{ path: "/api/utskick", schedule: "0 6 * * *" }] },
+            },
+          }),
+        ]
+      : []),
     viteReact(),
   ],
 }));

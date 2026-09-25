@@ -2,7 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { Menu, LogOut, ArrowLeftRight, Lock } from "lucide-react";
+import { Menu, LogOut, ArrowLeftRight, Lock, UserCog } from "lucide-react";
 
 import { getMe } from "@/lib/app.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,6 +39,12 @@ const AREA_HOME: Record<Area, string> = {
   admin: "/admin",
   contractor: "/entreprenor",
 };
+
+const AREA_PROFILE = {
+  resident: "/app/profil",
+  admin: "/admin/profil",
+  contractor: "/entreprenor/profil",
+} as const satisfies Record<Area, string>;
 
 const AREA_LABEL: Record<Area, string> = {
   resident: "Mitt boende",
@@ -207,15 +213,22 @@ export function AppShell({
           <LogOut className="size-4" />
           Logga ut
         </button>
-        <div className="px-3 pt-2">
-          <p className="truncate text-sm font-medium">{me?.profile?.full_name ?? "—"}</p>
-          <p className="truncate text-xs text-muted-foreground">{me?.profile?.email}</p>
-          {me && me.roles.length > 0 ? (
-            <p className="mt-1 truncate text-xs text-muted-foreground">
-              {me.roles.map((r) => ROLE_LABELS[r] ?? r).join(", ")}
-            </p>
-          ) : null}
-        </div>
+        <Link
+          to={AREA_PROFILE[area]}
+          onClick={() => setOpen(false)}
+          className="flex items-center gap-2.5 rounded-lg px-3 py-2 transition-colors hover:bg-sidebar-accent/60"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{me?.profile?.full_name ?? "—"}</p>
+            <p className="truncate text-xs text-muted-foreground">{me?.profile?.email}</p>
+            {me && me.roles.length > 0 ? (
+              <p className="mt-1 truncate text-xs text-muted-foreground">
+                {me.roles.map((r) => ROLE_LABELS[r] ?? r).join(", ")}
+              </p>
+            ) : null}
+          </div>
+          <UserCog className="size-4 shrink-0 text-muted-foreground" aria-label="Min profil" />
+        </Link>
       </div>
     </div>
   );

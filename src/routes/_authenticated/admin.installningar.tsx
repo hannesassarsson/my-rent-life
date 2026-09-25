@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { getAdminSettings, getMe, setMemberRole, updateOrganization } from "@/lib/app.functions";
 import { PageHeader, Panel, DataRow, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { StatusPill } from "@/components/status-badge";
+import { DeliveryAdmin } from "@/components/delivery-admin";
 import { dateLong } from "@/lib/format";
 import { ASSIGNABLE_ROLES, ROLE_LABELS } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
@@ -203,6 +204,10 @@ function AdminSettings() {
           </Panel>
         </div>
       )}
+
+      <div className="mt-6">
+        <DeliveryAdmin />
+      </div>
     </div>
   );
 }
