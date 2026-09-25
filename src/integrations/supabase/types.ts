@@ -1151,6 +1151,14 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      notify_request_reporter: {
+        Args: { _request_id: string; _title: string; _body: string };
+        Returns: undefined;
+      };
+      set_member_role: {
+        Args: { _user_id: string; _role: Database["public"]["Enums"]["app_role"] };
+        Returns: undefined;
+      };
       pay_my_payment: {
         Args: { _payment_id: string; _method: string };
         Returns: undefined;

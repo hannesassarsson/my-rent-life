@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { EmptyState } from "@/components/ui-kit";
+import { NotificationBell } from "@/components/notification-bell";
 import { ROLE_LABELS, type Permission } from "@/lib/permissions";
 
 export type NavItem = {
@@ -140,9 +141,12 @@ export function AppShell({
 
   const sidebar = (
     <div className="flex h-full flex-col gap-6 px-4 py-5">
-      <Link to="/" className="px-1">
-        <Logo />
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link to="/" className="px-1">
+          <Logo />
+        </Link>
+        <NotificationBell className="hidden lg:inline-flex" />
+      </div>
       <div className="rounded-xl bg-surface-muted px-3 py-3">
         <p className="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">
           {AREA_LABEL[area]}
@@ -208,7 +212,7 @@ export function AppShell({
           </SheetContent>
         </Sheet>
         <Logo />
-        <span className="w-9" />
+        <NotificationBell />
       </header>
 
       <main className="lg:pl-[270px]">

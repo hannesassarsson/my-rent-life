@@ -273,6 +273,15 @@ export const addRequestComment = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
     }
 
+    if (data.body.trim() && (me.isStaff || me.isContractor)) {
+      await notifyReporter(
+        supabase,
+        data.requestId,
+        "Nytt svar i ditt ärende",
+        `${me.profile?.full_name ?? "Förvaltningen"}: ${data.body.trim().slice(0, 200)}`,
+      );
+    }
+
     if (data.action === "resolved") {
       await supabase
         .from("maintenance_requests")
@@ -530,8 +539,44 @@ export const sendMessage = createServerFn({ method: "POST" })
       body: data.body,
     });
     if (error) throw new Error(error.message);
+    if (staff && data.residentUserId) {
+      await supabase.from("notifications").insert({
+        organization_id: orgId,
+        user_id: data.residentUserId,
+        title: `Nytt meddelande: ${data.subject ?? "från förvaltningen"}`,
+        body: data.body.slice(0, 200),
+        link: "/app/meddelanden",
+      });
+    }
     return { ok: true };
   });
+
+/** Notis till den som anmälde ett ärende (tyst om det misslyckas). */
+async function notifyReporter(supabase: Db, requestId: string, title: string, body: string) {
+  await supabase.rpc("notify_request_reporter", {
+    _request_id: requestId,
+    _title: title,
+    _body: body,
+  });
+}
+
+/** Notis till alla medlemmar i organisationen utom avsändaren. */
+async function notifyMembers(
+  supabase: Db,
+  orgId: string,
+  exceptUserId: string,
+  notification: { title: string; body: string; link: string },
+) {
+  const { data: members } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("organization_id", orgId)
+    .neq("id", exceptUserId);
+  if (!members || members.length === 0) return;
+  await supabase
+    .from("notifications")
+    .insert(members.map((m) => ({ organization_id: orgId, user_id: m.id, ...notification })));
+}
 
 /** Hur personal presenteras i meddelanden och kommentarer. */
 function senderRole(roles: string[]) {
@@ -752,6 +797,16 @@ export const updateRequestAdmin = createServerFn({ method: "POST" })
         body: data.note.trim(),
       });
     }
+    if (data.status || data.note?.trim()) {
+      await notifyReporter(
+        supabase,
+        data.id,
+        data.status
+          ? `Ditt ärende är ${requestStatusLabels[data.status]?.toLowerCase()}`
+          : "Nytt svar i ditt ärende",
+        data.note?.trim().slice(0, 200) || labels.join(" · "),
+      );
+    }
     return { ok: true };
   });
 
@@ -965,6 +1020,13 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
       ? await supabase.from("announcements").update(row).eq("id", data.id)
       : await supabase.from("announcements").insert(row);
     if (error) throw new Error(error.message);
+    if (data.publish) {
+      await notifyMembers(supabase, orgId, context.userId, {
+        title: `Ny information: ${data.title}`,
+        body: data.body.slice(0, 200),
+        link: "/app/information",
+      });
+    }
     return { ok: true };
   });
 
@@ -1255,6 +1317,14 @@ export const updateContractorJob = createServerFn({ method: "POST" })
       });
       if (error) throw new Error(error.message);
     }
+    if (labels.length > 0 || data.note?.trim()) {
+      await notifyReporter(
+        supabase,
+        data.id,
+        labels[0] ?? `Nytt meddelande från ${company}`,
+        data.note?.trim().slice(0, 200) || `${company} har uppdaterat ditt ärende.`,
+      );
+    }
     return { ok: true };
   });
 
@@ -1314,6 +1384,20 @@ export const saveMeeting = createServerFn({ method: "POST" })
       ? await supabase.from("meetings").update(row).eq("id", data.id).eq("organization_id", orgId)
       : await supabase.from("meetings").insert(row);
     if (error) throw new Error(error.message);
+    if (!data.id) {
+      const when = new Intl.DateTimeFormat("sv-SE", {
+        timeZone: "Europe/Stockholm",
+        day: "numeric",
+        month: "long",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(data.startsAt));
+      await notifyMembers(supabase, orgId, context.userId, {
+        title: `Kallelse: ${data.title}`,
+        body: `${when}${data.location ? ` · ${data.location}` : ""}. Anmäl dig under Möten.`,
+        link: "/app/moten",
+      });
+    }
     return { ok: true };
   });
 
@@ -1627,6 +1711,82 @@ export const payMyPayment = createServerFn({ method: "POST" })
       _payment_id: data.id,
       _method: data.method,
     });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/* ---------------------------- INSTÄLLNINGAR ---------------------------- */
+
+export const updateOrganization = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({ name: shortText.min(1), orgType: z.enum(["brf", "rental", "manager"]) }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "settings.edit");
+    const { error } = await supabase
+      .from("organizations")
+      .update({ name: data.name, org_type: data.orgType })
+      .eq("id", orgId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const setMemberRole = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      userId: id,
+      role: z.enum([
+        "org_admin",
+        "property_manager",
+        "board_member",
+        "staff",
+        "contractor",
+        "resident",
+      ]),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    await requirePermission(supabase, context.userId, "settings.edit");
+    const { error } = await supabase.rpc("set_member_role", {
+      _user_id: data.userId,
+      _role: data.role,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/* ------------------------------- NOTISER ------------------------------- */
+
+export const getNotifications = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase as Db;
+    const { data } = await supabase
+      .from("notifications")
+      .select("id, title, body, link, is_read, created_at")
+      .eq("user_id", context.userId)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    const items = data ?? [];
+    return { items, unread: items.filter((n) => !n.is_read).length };
+  });
+
+export const markNotificationsRead = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ ids: z.array(id).max(100).optional() }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    let query = supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", context.userId)
+      .eq("is_read", false);
+    if (data.ids) query = query.in("id", data.ids);
+    const { error } = await query;
     if (error) throw new Error(error.message);
     return { ok: true };
   });
