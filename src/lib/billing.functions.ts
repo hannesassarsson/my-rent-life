@@ -239,7 +239,18 @@ export const openBillingPortal = createServerFn({ method: "POST" })
       customer: sub.stripe_customer_id,
       configuration: config.id,
       locale: "sv",
-      return_url: `${origin}/admin/abonnemang`,
+      return_url: `${origin}/admin/abonnemang?synk=1`,
     });
     return { url: portal.url };
+  });
+
+/** Hämtar abonnemanget från Stripe direkt, t.ex. efter besök i kundportalen. */
+export const refreshBilling = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "settings.edit");
+    const { subscription: sub, units } = await loadBilling(supabase, orgId);
+    if (sub && !sub.is_demo && stripeConfigured()) await syncFromStripe(orgId, sub, units);
+    return { ok: true };
   });

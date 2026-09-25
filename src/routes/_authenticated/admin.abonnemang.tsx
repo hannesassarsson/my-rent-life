@@ -10,6 +10,7 @@ import {
   confirmCheckout,
   getBilling,
   openBillingPortal,
+  refreshBilling,
   startCheckout,
 } from "@/lib/billing.functions";
 import {
@@ -29,7 +30,7 @@ import { dateLong } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/admin/abonnemang")({
-  validateSearch: z.object({ kop: z.string().optional() }),
+  validateSearch: z.object({ kop: z.string().optional(), synk: z.coerce.number().optional() }),
   head: () => ({ meta: [{ title: "Abonnemang – Boendeplattformen" }] }),
   component: BillingPage,
 });
@@ -39,6 +40,10 @@ type Billing = Awaited<ReturnType<typeof getBilling>>;
 function statusText(sub: NonNullable<Billing["subscription"]>) {
   if (sub.isDemo) return { label: "Demo", tone: "info" as const };
   if (sub.invoiceBilling) return { label: "Faktura", tone: "success" as const };
+  if (sub.cancelAtPeriodEnd && ["trialing", "active", "past_due"].includes(sub.status)) {
+    const end = sub.status === "trialing" ? sub.trialEndsAt : sub.currentPeriodEnd;
+    return { label: `Uppsagt, gäller till ${dateLong(end)}`, tone: "warning" as const };
+  }
   switch (sub.status) {
     case "trialing":
       return sub.hasStripeSubscription
@@ -48,12 +53,7 @@ function statusText(sub: NonNullable<Billing["subscription"]>) {
           }
         : { label: `Provperiod till ${dateLong(sub.trialEndsAt)}`, tone: "info" as const };
     case "active":
-      return sub.cancelAtPeriodEnd
-        ? {
-            label: `Uppsagt, gäller till ${dateLong(sub.currentPeriodEnd)}`,
-            tone: "warning" as const,
-          }
-        : { label: "Aktivt", tone: "success" as const };
+      return { label: "Aktivt", tone: "success" as const };
     case "past_due":
       return { label: "Betalningen misslyckades", tone: "danger" as const };
     default:
@@ -66,9 +66,10 @@ function BillingPage() {
   const checkoutFn = useServerFn(startCheckout);
   const confirmFn = useServerFn(confirmCheckout);
   const portalFn = useServerFn(openBillingPortal);
+  const refreshFn = useServerFn(refreshBilling);
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { kop } = Route.useSearch();
+  const { kop, synk } = Route.useSearch();
   const { data, isPending } = useQuery({ queryKey: ["billing"], queryFn: () => fn() });
   const [interval, setInterval] = useState<BillingInterval>("year");
   const confirmed = useRef(false);
@@ -92,6 +93,16 @@ function BillingPage() {
       .finally(() => void navigate({ to: "/admin/abonnemang", search: {}, replace: true }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kop]);
+
+  // Tillbaka från kundportalen: läs in eventuella ändringar direkt.
+  useEffect(() => {
+    if (!synk) return;
+    refreshFn()
+      .then(refresh)
+      .catch((e: Error) => toast.error(e.message))
+      .finally(() => void navigate({ to: "/admin/abonnemang", search: {}, replace: true }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [synk]);
 
   useEffect(() => {
     const current = data?.subscription?.billingInterval;
