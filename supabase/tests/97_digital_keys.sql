@@ -23,7 +23,9 @@ select tests.assert(
   (select public.unlock_door(garage)->>'result' = 'denied' from door_ids),
   'boende utan garagenyckel nekas');
 select tests.assert(
-  (select count(*) = 2 from public.access_events where user_id = auth.uid()),
+  -- Demons slumpade passager kan också gälla den här boende; räkna bara
+  -- de som gjordes i testet (samma transaktion, alltså samma now()).
+  (select count(*) = 2 from public.access_events where user_id = auth.uid() and created_at = now()),
   'boende ser sina egna passager');
 select tests.assert(
   (select count(*) = 0 from public.access_events where user_id is distinct from auth.uid()),
