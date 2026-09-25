@@ -783,7 +783,7 @@ export const getAdminUnits = createServerFn({ method: "GET" })
     const { data } = await supabase
       .from("units")
       .select(
-        "id, unit_number, object_number, address, size_sqm, rooms, floor, tenure, monthly_amount, status, buildings(name)",
+        "id, unit_number, object_number, address, size_sqm, rooms, floor, tenure, monthly_amount, status, storage, parking, key_count, balcony, buildings(name)",
       )
       .eq("organization_id", orgId)
       .order("address")
@@ -797,15 +797,29 @@ export const getAdminResidents = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
     const { orgId } = await requirePermission(supabase, context.userId, "residents.view");
-    const { data } = await supabase
-      .from("residencies")
-      .select(
-        "id, resident_name, email, phone, move_in_date, tenure, status, user_id, units(unit_number, address)",
-      )
-      .eq("organization_id", orgId)
-      .order("resident_name")
-      .limit(300);
-    return data ?? [];
+    const [residents, units] = await Promise.all([
+      supabase
+        .from("residencies")
+        .select(
+          "id, resident_name, email, phone, move_in_date, move_out_date, tenure, status, user_id, unit_id, units(unit_number, address)",
+        )
+        .eq("organization_id", orgId)
+        .order("resident_name")
+        .limit(500),
+      supabase
+        .from("units")
+        .select("id, unit_number, address, tenure, status")
+        .eq("organization_id", orgId)
+        .order("address")
+        .order("unit_number"),
+    ]);
+    const occupied = new Set(
+      (residents.data ?? []).filter((r) => r.status === "active").map((r) => r.unit_id),
+    );
+    return {
+      residents: residents.data ?? [],
+      vacantUnits: (units.data ?? []).filter((u) => !occupied.has(u.id)),
+    };
   });
 
 export const getResidentDetail = createServerFn({ method: "GET" })
@@ -1312,6 +1326,152 @@ export const deleteMeeting = createServerFn({ method: "POST" })
       .delete()
       .eq("id", data.id)
       .eq("organization_id", orgId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/* --------------------------- BOENDE & LÄGENHETER --------------------------- */
+
+const tenure = z.enum(["owned", "rented"]);
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ogiltigt datum");
+const optionalEmail = z.union([z.literal(""), z.string().trim().email("Ogiltig e-post").max(200)]);
+
+export const updateResident = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      id,
+      residentName: shortText.min(1),
+      email: optionalEmail,
+      phone: z.string().trim().max(40),
+      tenure,
+      moveInDate: isoDate.optional(),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "residents.edit");
+    const { error } = await supabase
+      .from("residencies")
+      .update({
+        resident_name: data.residentName,
+        email: data.email || null,
+        phone: data.phone || null,
+        tenure: data.tenure,
+        ...(data.moveInDate ? { move_in_date: data.moveInDate } : {}),
+      })
+      .eq("id", data.id)
+      .eq("organization_id", orgId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const moveOutResident = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ id, moveOutDate: isoDate, vacateUnit: z.boolean() }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "residents.edit");
+    const { data: residency, error } = await supabase
+      .from("residencies")
+      .update({ status: "moved_out", move_out_date: data.moveOutDate })
+      .eq("id", data.id)
+      .eq("organization_id", orgId)
+      .select("unit_id")
+      .single();
+    if (error) throw new Error(error.message);
+    if (data.vacateUnit) {
+      const { count } = await supabase
+        .from("residencies")
+        .select("id", { count: "exact", head: true })
+        .eq("unit_id", residency.unit_id)
+        .eq("status", "active");
+      if (!count)
+        await supabase.from("units").update({ status: "vacant" }).eq("id", residency.unit_id);
+    }
+    return { ok: true };
+  });
+
+export const moveInResident = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      unitId: id,
+      residentName: shortText.min(1),
+      email: optionalEmail,
+      phone: z.string().trim().max(40),
+      tenure,
+      moveInDate: isoDate,
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "residents.edit");
+    const { data: created, error } = await supabase
+      .from("residencies")
+      .insert({
+        organization_id: orgId,
+        unit_id: data.unitId,
+        resident_name: data.residentName,
+        email: data.email || null,
+        phone: data.phone || null,
+        tenure: data.tenure,
+        move_in_date: data.moveInDate,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    await supabase.from("units").update({ status: "active" }).eq("id", data.unitId);
+    return { id: created.id };
+  });
+
+export const updateUnit = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      id,
+      monthlyAmount: z.number().min(0).max(1_000_000),
+      sizeSqm: z.number().min(1).max(10_000),
+      rooms: z.number().min(0).max(100),
+      tenure,
+      status: z.enum(["active", "vacant", "renovation"]),
+      storage: z.string().trim().max(200),
+      parking: z.string().trim().max(200),
+      keyCount: z.number().int().min(0).max(100),
+      balcony: z.boolean(),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "properties.edit");
+    const { error } = await supabase
+      .from("units")
+      .update({
+        monthly_amount: data.monthlyAmount,
+        size_sqm: data.sizeSqm,
+        rooms: data.rooms,
+        tenure: data.tenure,
+        status: data.status,
+        storage: data.storage || null,
+        parking: data.parking || null,
+        key_count: data.keyCount,
+        balcony: data.balcony,
+      })
+      .eq("id", data.id)
+      .eq("organization_id", orgId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const updateMyContact = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ fullName: shortText.min(1), phone: z.string().trim().max(40) }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { error } = await supabase.rpc("update_my_contact", {
+      _full_name: data.fullName,
+      _phone: data.phone,
+    });
     if (error) throw new Error(error.message);
     return { ok: true };
   });

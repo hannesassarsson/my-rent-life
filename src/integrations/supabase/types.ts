@@ -912,6 +912,7 @@ export type Database = {
       };
       residencies: {
         Row: {
+          move_out_date: string | null;
           created_at: string;
           email: string | null;
           id: string;
@@ -926,6 +927,7 @@ export type Database = {
           user_id: string | null;
         };
         Insert: {
+          move_out_date?: string | null;
           created_at?: string;
           email?: string | null;
           id?: string;
@@ -940,6 +942,7 @@ export type Database = {
           user_id?: string | null;
         };
         Update: {
+          move_out_date?: string | null;
           created_at?: string;
           email?: string | null;
           id?: string;
@@ -1142,6 +1145,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      update_my_contact: {
+        Args: { _full_name: string; _phone: string };
+        Returns: undefined;
+      };
       can_see_request: {
         Args: { _request_id: string; _user_id: string };
         Returns: boolean;

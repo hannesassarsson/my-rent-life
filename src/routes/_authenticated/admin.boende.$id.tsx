@@ -4,6 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft } from "lucide-react";
 
 import { getResidentDetail } from "@/lib/app.functions";
+import { ResidentActions } from "@/components/resident-actions";
+import { StatusPill } from "@/components/status-badge";
 import { PageHeader, Panel, DataRow, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { PaymentStatusBadge, RequestStatusBadge } from "@/components/status-badge";
 import { dateLong, dateShort, kr, monthName, timeRange } from "@/lib/format";
@@ -39,7 +41,15 @@ function ResidentDetail() {
         subtitle={`${unit?.address ?? ""} · Lägenhet ${unit?.unit_number ?? ""} · ${
           data.residency.tenure === "rented" ? "Hyresgäst" : "Medlem"
         }`}
+        action={<ResidentActions residency={data.residency} />}
       />
+      {data.residency.status !== "active" ? (
+        <div className="-mt-4 mb-6">
+          <StatusPill tone="neutral">
+            Utflyttad {data.residency.move_out_date ? dateLong(data.residency.move_out_date) : ""}
+          </StatusPill>
+        </div>
+      ) : null}
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Panel title="Kontaktuppgifter">
