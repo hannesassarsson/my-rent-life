@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { OpenFileButton } from "@/components/open-file-button";
 import { toast } from "sonner";
 
 import { getMyHome, updateMyContact } from "@/lib/app.functions";
@@ -127,7 +128,7 @@ function MyHome() {
                       {d.file_size ?? ""}
                     </p>
                   </div>
-                  <span className="text-xs text-muted-foreground">{dateLong(d.created_at)}</span>
+                  <OpenFileButton path={d.storage_path} />
                 </li>
               ))}
             </ul>

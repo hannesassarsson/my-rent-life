@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { OpenFileButton } from "@/components/open-file-button";
 import { ArrowLeft } from "lucide-react";
 
 import { getResidentDetail } from "@/lib/app.functions";
@@ -143,7 +144,7 @@ function ResidentDetail() {
               {data.documents.map((d) => (
                 <li key={d.id} className="flex items-center justify-between gap-3 py-3 text-sm">
                   <span>{d.title}</span>
-                  <span className="text-xs text-muted-foreground uppercase">{d.file_kind}</span>
+                  <OpenFileButton path={d.storage_path} />
                 </li>
               ))}
             </ul>

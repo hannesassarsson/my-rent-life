@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { addRequestComment, getRequestDetail } from "@/lib/app.functions";
+import { RequestAttachments } from "@/components/request-attachments";
 import { DataRow, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
 import { PriorityBadge, RequestStatusBadge } from "@/components/status-badge";
 import { authorRoleLabel, dateTime } from "@/lib/format";
@@ -78,6 +79,8 @@ function RequestPage() {
               {r.description || "Ingen beskrivning lämnad."}
             </p>
           </Panel>
+
+          <RequestAttachments request={r} attachments={data.attachments} canUpload={true} />
 
           <Panel title="Tidslinje">
             <ol className="space-y-4">

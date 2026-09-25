@@ -979,6 +979,50 @@ export type Database = {
           },
         ];
       };
+      request_attachments: {
+        Row: {
+          content_type: string | null;
+          created_at: string;
+          file_name: string;
+          id: string;
+          organization_id: string;
+          request_id: string;
+          size_bytes: number | null;
+          storage_path: string;
+          uploaded_by: string | null;
+        };
+        Insert: {
+          content_type?: string | null;
+          created_at?: string;
+          file_name: string;
+          id?: string;
+          organization_id: string;
+          request_id: string;
+          size_bytes?: number | null;
+          storage_path: string;
+          uploaded_by?: string | null;
+        };
+        Update: {
+          content_type?: string | null;
+          created_at?: string;
+          file_name?: string;
+          id?: string;
+          organization_id?: string;
+          request_id?: string;
+          size_bytes?: number | null;
+          storage_path?: string;
+          uploaded_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "request_attachments_request_id_fkey";
+            columns: ["request_id"];
+            isOneToOne: false;
+            referencedRelation: "maintenance_requests";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       resources: {
         Row: {
           cancel_hours: number;

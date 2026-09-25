@@ -18,6 +18,7 @@ import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/ap
 import { Route as AuthenticatedEntreprenorRouteImport } from './routes/_authenticated/entreprenor'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminBokningarRouteImport } from './routes/_authenticated/admin.bokningar'
+import { Route as AuthenticatedAdminDokumentRouteImport } from './routes/_authenticated/admin.dokument'
 import { Route as AuthenticatedAdminEkonomiRouteImport } from './routes/_authenticated/admin.ekonomi'
 import { Route as AuthenticatedAdminEntreprenorerRouteImport } from './routes/_authenticated/admin.entreprenorer'
 import { Route as AuthenticatedAdminFastigheterRouteImport } from './routes/_authenticated/admin.fastigheter'
@@ -87,6 +88,12 @@ const AuthenticatedAdminBokningarRoute =
   AuthenticatedAdminBokningarRouteImport.update({
     id: '/bokningar',
     path: '/bokningar',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminDokumentRoute =
+  AuthenticatedAdminDokumentRouteImport.update({
+    id: '/dokument',
+    path: '/dokument',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminEkonomiRoute =
@@ -237,6 +244,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/entreprenor': typeof AuthenticatedEntreprenorRouteWithChildren
   '/admin/bokningar': typeof AuthenticatedAdminBokningarRoute
+  '/admin/dokument': typeof AuthenticatedAdminDokumentRoute
   '/admin/ekonomi': typeof AuthenticatedAdminEkonomiRoute
   '/admin/entreprenorer': typeof AuthenticatedAdminEntreprenorerRoute
   '/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
@@ -268,6 +276,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/boka-demo': typeof BokaDemoRoute
   '/admin/bokningar': typeof AuthenticatedAdminBokningarRoute
+  '/admin/dokument': typeof AuthenticatedAdminDokumentRoute
   '/admin/ekonomi': typeof AuthenticatedAdminEkonomiRoute
   '/admin/entreprenorer': typeof AuthenticatedAdminEntreprenorerRoute
   '/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
@@ -304,6 +313,7 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/entreprenor': typeof AuthenticatedEntreprenorRouteWithChildren
   '/_authenticated/admin/bokningar': typeof AuthenticatedAdminBokningarRoute
+  '/_authenticated/admin/dokument': typeof AuthenticatedAdminDokumentRoute
   '/_authenticated/admin/ekonomi': typeof AuthenticatedAdminEkonomiRoute
   '/_authenticated/admin/entreprenorer': typeof AuthenticatedAdminEntreprenorerRoute
   '/_authenticated/admin/fastigheter': typeof AuthenticatedAdminFastigheterRoute
@@ -340,6 +350,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/entreprenor'
     | '/admin/bokningar'
+    | '/admin/dokument'
     | '/admin/ekonomi'
     | '/admin/entreprenorer'
     | '/admin/fastigheter'
@@ -371,6 +382,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/boka-demo'
     | '/admin/bokningar'
+    | '/admin/dokument'
     | '/admin/ekonomi'
     | '/admin/entreprenorer'
     | '/admin/fastigheter'
@@ -406,6 +418,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app'
     | '/_authenticated/entreprenor'
     | '/_authenticated/admin/bokningar'
+    | '/_authenticated/admin/dokument'
     | '/_authenticated/admin/ekonomi'
     | '/_authenticated/admin/entreprenorer'
     | '/_authenticated/admin/fastigheter'
@@ -503,6 +516,13 @@ declare module '@tanstack/react-router' {
       path: '/bokningar'
       fullPath: '/admin/bokningar'
       preLoaderRoute: typeof AuthenticatedAdminBokningarRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/dokument': {
+      id: '/_authenticated/admin/dokument'
+      path: '/dokument'
+      fullPath: '/admin/dokument'
+      preLoaderRoute: typeof AuthenticatedAdminDokumentRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/ekonomi': {
@@ -678,6 +698,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminBokningarRoute: typeof AuthenticatedAdminBokningarRoute
+  AuthenticatedAdminDokumentRoute: typeof AuthenticatedAdminDokumentRoute
   AuthenticatedAdminEkonomiRoute: typeof AuthenticatedAdminEkonomiRoute
   AuthenticatedAdminEntreprenorerRoute: typeof AuthenticatedAdminEntreprenorerRoute
   AuthenticatedAdminFastigheterRoute: typeof AuthenticatedAdminFastigheterRoute
@@ -695,6 +716,7 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminBokningarRoute: AuthenticatedAdminBokningarRoute,
+  AuthenticatedAdminDokumentRoute: AuthenticatedAdminDokumentRoute,
   AuthenticatedAdminEkonomiRoute: AuthenticatedAdminEkonomiRoute,
   AuthenticatedAdminEntreprenorerRoute: AuthenticatedAdminEntreprenorerRoute,
   AuthenticatedAdminFastigheterRoute: AuthenticatedAdminFastigheterRoute,

@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
+import { OpenFileButton } from "@/components/open-file-button";
 import { getDocuments } from "@/lib/app.functions";
 import { EmptyState, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
 import { dateLong, docTypeLabel } from "@/lib/format";
@@ -74,7 +75,12 @@ function DocumentsPage() {
                         {d.properties?.name ? ` · ${d.properties.name}` : ""}
                       </p>
                     </div>
-                    <span className="text-xs text-muted-foreground">{dateLong(d.created_at)}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground">
+                        {dateLong(d.created_at)}
+                      </span>
+                      <OpenFileButton path={d.storage_path} />
+                    </div>
                   </li>
                 ))}
               </ul>

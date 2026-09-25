@@ -12,6 +12,7 @@ import {
   Settings,
   MessageSquare,
   CalendarDays,
+  FileText,
 } from "lucide-react";
 
 import { AppShell, type NavItem } from "@/components/app-shell";
@@ -41,6 +42,7 @@ const items: NavItem[] = [
     permission: "messages.edit",
   },
   { label: "Möten", to: "/admin/moten", icon: CalendarDays, permission: "meetings.edit" },
+  { label: "Dokument", to: "/admin/dokument", icon: FileText, permission: "documents.edit" },
   {
     label: "Entreprenörer",
     to: "/admin/entreprenorer",

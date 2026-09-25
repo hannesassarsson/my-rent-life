@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { createRequest, getMyRequests } from "@/lib/app.functions";
+import { addRequestAttachments, createRequest, getMyRequests } from "@/lib/app.functions";
+import { attachImages } from "@/components/request-attachments";
+import { IMAGE_TYPES, checkFile } from "@/lib/files";
 import { EmptyState, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
 import { PriorityBadge, RequestStatusBadge } from "@/components/status-badge";
 import { categoryLabels, dateTime } from "@/lib/format";
@@ -44,6 +46,7 @@ const rooms = ["Kök", "Badrum", "Vardagsrum", "Sovrum", "Hall", "Balkong", "Fö
 function MyRequests() {
   const fn = useServerFn(getMyRequests);
   const create = useServerFn(createRequest);
+  const attach = useServerFn(addRequestAttachments);
   const qc = useQueryClient();
   const { data, isPending } = useQuery({ queryKey: ["my-requests"], queryFn: () => fn() });
 
@@ -54,6 +57,7 @@ function MyRequests() {
   const [description, setDescription] = useState("");
   const [room, setRoom] = useState("");
   const [isUrgent, setIsUrgent] = useState(false);
+  const [images, setImages] = useState<File[]>([]);
 
   function reset() {
     setStep(1);
@@ -62,10 +66,21 @@ function MyRequests() {
     setDescription("");
     setRoom("");
     setIsUrgent(false);
+    setImages([]);
   }
 
   const mutation = useMutation({
-    mutationFn: () => create({ data: { category, title, description, room, isUrgent } }),
+    mutationFn: async () => {
+      const created = await create({ data: { category, title, description, room, isUrgent } });
+      if (images.length > 0) {
+        try {
+          await attachImages(attach, created, images);
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Bilderna kunde inte laddas upp");
+        }
+      }
+      return created;
+    },
     onSuccess: (created) => {
       toast.success(`Felanmälan skickad – ärende #${created.ticket_number}`);
       void qc.invalidateQueries({ queryKey: ["my-requests"] });
@@ -159,6 +174,28 @@ function MyRequests() {
                       ))}
                     </div>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="images">Bilder (valfritt)</Label>
+                    <Input
+                      id="images"
+                      type="file"
+                      accept={IMAGE_TYPES.join(",")}
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? []);
+                        try {
+                          files.forEach((f) => checkFile(f, IMAGE_TYPES));
+                          setImages(files.slice(0, 5));
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : "Ogiltig fil");
+                          e.target.value = "";
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Högst 5 bilder, 10 MB per bild. En bild säger ofta mer än en beskrivning.
+                    </p>
+                  </div>
                 </div>
               ) : null}
 
@@ -174,6 +211,11 @@ function MyRequests() {
                       {room ? ` · ${room}` : ""}
                     </p>
                     <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+                    {images.length > 0 ? (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {images.length} {images.length === 1 ? "bild" : "bilder"} bifogas
+                      </p>
+                    ) : null}
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-border p-4">
                     <div>

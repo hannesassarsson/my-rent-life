@@ -154,7 +154,7 @@ export const getMyHome = createServerFn({ method: "GET" })
     const me = await loadMe(supabase, context.userId);
     const { data: documents } = await supabase
       .from("documents")
-      .select("id, title, doc_type, file_kind, file_size, unit_id, created_at")
+      .select("id, title, doc_type, file_kind, file_size, unit_id, storage_path, created_at")
       .order("created_at", { ascending: false });
     return { me, documents: documents ?? [] };
   });
@@ -186,7 +186,7 @@ export const getRequestDetail = createServerFn({ method: "GET" })
       .eq("id", data.id)
       .maybeSingle();
     if (!request) throw new Error("Ärendet hittades inte");
-    const [events, comments] = await Promise.all([
+    const [events, comments, attachments] = await Promise.all([
       supabase
         .from("maintenance_events")
         .select("id, label, created_at")
@@ -197,8 +197,19 @@ export const getRequestDetail = createServerFn({ method: "GET" })
         .select("id, author_name, author_role, body, created_at")
         .eq("request_id", data.id)
         .order("created_at", { ascending: true }),
+      supabase
+        .from("request_attachments")
+        .select("id, storage_path, file_name, content_type, created_at")
+        .eq("request_id", data.id)
+        .order("created_at", { ascending: true }),
     ]);
-    return { me, request, events: events.data ?? [], comments: comments.data ?? [] };
+    return {
+      me,
+      request,
+      events: events.data ?? [],
+      comments: comments.data ?? [],
+      attachments: attachments.data ?? [],
+    };
   });
 
 export const createRequest = createServerFn({ method: "POST" })
@@ -231,7 +242,7 @@ export const createRequest = createServerFn({ method: "POST" })
         priority: data.isUrgent ? "urgent" : "normal",
         status: "new",
       })
-      .select("id, ticket_number")
+      .select("id, ticket_number, organization_id")
       .single();
     if (error) throw new Error(error.message);
     await supabase.from("maintenance_events").insert({
@@ -908,7 +919,10 @@ export const getResidentDetail = createServerFn({ method: "GET" })
         .eq("unit_id", unitId)
         .order("starts_at", { ascending: false })
         .limit(10),
-      supabase.from("documents").select("id, title, doc_type, file_kind").eq("unit_id", unitId),
+      supabase
+        .from("documents")
+        .select("id, title, doc_type, file_kind, storage_path")
+        .eq("unit_id", unitId),
     ]);
     return {
       residency,
@@ -1788,5 +1802,135 @@ export const markNotificationsRead = createServerFn({ method: "POST" })
     if (data.ids) query = query.in("id", data.ids);
     const { error } = await query;
     if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/* -------------------------------- FILER -------------------------------- */
+
+export const addRequestAttachments = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      requestId: id,
+      files: z
+        .array(
+          z.object({
+            storagePath: z.string().min(1).max(500),
+            fileName: shortText.min(1),
+            contentType: z.string().max(100),
+            sizeBytes: z
+              .number()
+              .int()
+              .min(0)
+              .max(10 * 1024 * 1024),
+          }),
+        )
+        .min(1)
+        .max(10),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { data: request } = await supabase
+      .from("maintenance_requests")
+      .select("id, organization_id")
+      .eq("id", data.requestId)
+      .maybeSingle();
+    if (!request) throw new Error("Ärendet hittades inte");
+    const { error } = await supabase.from("request_attachments").insert(
+      data.files.map((f) => ({
+        organization_id: request.organization_id,
+        request_id: request.id,
+        storage_path: f.storagePath,
+        file_name: f.fileName,
+        content_type: f.contentType,
+        size_bytes: f.sizeBytes,
+        uploaded_by: context.userId,
+      })),
+    );
+    if (error) throw new Error(error.message);
+    await supabase.from("maintenance_events").insert({
+      organization_id: request.organization_id,
+      request_id: request.id,
+      label: data.files.length === 1 ? "Bild bifogad" : `${data.files.length} bilder bifogade`,
+    });
+    return { ok: true };
+  });
+
+export const getAdminDocuments = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "documents.edit");
+    const [documents, properties, units] = await Promise.all([
+      supabase
+        .from("documents")
+        .select("*, properties(name), units(unit_number, address)")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false }),
+      supabase.from("properties").select("id, name").eq("organization_id", orgId).order("name"),
+      supabase
+        .from("units")
+        .select("id, unit_number, address")
+        .eq("organization_id", orgId)
+        .order("address")
+        .order("unit_number"),
+    ]);
+    return {
+      orgId,
+      documents: documents.data ?? [],
+      properties: properties.data ?? [],
+      units: units.data ?? [],
+    };
+  });
+
+export const saveDocument = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      title: shortText.min(1),
+      docType: z.string().trim().min(1).max(40),
+      scope: z.discriminatedUnion("kind", [
+        z.object({ kind: z.literal("organization") }),
+        z.object({ kind: z.literal("property"), propertyId: id }),
+        z.object({ kind: z.literal("unit"), unitId: id }),
+      ]),
+      storagePath: z.string().min(1).max(500),
+      fileKind: z.string().max(10),
+      fileSize: z.string().max(20),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "documents.edit");
+    const { error } = await supabase.from("documents").insert({
+      organization_id: orgId,
+      title: data.title,
+      doc_type: data.docType,
+      property_id: data.scope.kind === "property" ? data.scope.propertyId : null,
+      unit_id: data.scope.kind === "unit" ? data.scope.unitId : null,
+      storage_path: data.storagePath,
+      file_kind: data.fileKind,
+      file_size: data.fileSize,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteDocument = createServerFn({ method: "POST" })
+  .inputValidator(byIdSchema)
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "documents.edit");
+    const { data: doc, error } = await supabase
+      .from("documents")
+      .delete()
+      .eq("id", data.id)
+      .eq("organization_id", orgId)
+      .select("storage_path")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (doc?.storage_path) await supabase.storage.from("files").remove([doc.storage_path]);
     return { ok: true };
   });

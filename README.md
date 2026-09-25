@@ -82,6 +82,14 @@ finare uppdelningen mellan personalroller görs i serverfunktionerna.
 - Förfrågningar från `/boka-demo` sparas i tabellen `demo_requests` och läses i
   Supabase-dashboarden (Table Editor).
 
+## Filer
+
+Dokument och bilder i felanmälningar ligger i den privata bucketen `files` i
+Supabase Storage (`<org>/documents/…` och `<org>/requests/<ärende>/…`). Filer
+öppnas via länkar som gäller i en minut, och läsrätten följer dokumentet eller
+ärendet de hör till. Demodokumentens filer (`<org>/documents/demo-*`) kan inte
+tas bort via API:t.
+
 ## Driftsättning
 
 `bun run build` producerar en Nitro-server i `.output/`. Målplattformen detekteras

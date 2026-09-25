@@ -12,6 +12,7 @@ import {
   type RequestPriority,
   type RequestStatus,
 } from "@/lib/app.functions";
+import { RequestAttachments } from "@/components/request-attachments";
 import { PageHeader, Panel, DataRow, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { PriorityBadge, RequestStatusBadge } from "@/components/status-badge";
 import { authorRoleLabel, dateTime, priorityLabels, requestStatusLabels } from "@/lib/format";
@@ -101,6 +102,12 @@ function AdminRequestDetail() {
               {r.resolved_at ? <DataRow label="Löst" value={dateTime(r.resolved_at)} /> : null}
             </dl>
           </Panel>
+
+          <RequestAttachments
+            request={r}
+            attachments={data.attachments}
+            canUpload={can("requests.edit")}
+          />
 
           <Panel title="Tidslinje">
             {data.events.length === 0 ? (
