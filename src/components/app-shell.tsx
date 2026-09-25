@@ -14,6 +14,9 @@ import { NotificationBell } from "@/components/notification-bell";
 import { ROLE_LABELS, type Permission } from "@/lib/permissions";
 import { orgProfileFor, type OrgTerm } from "@/lib/org-profile";
 import { PLANS, type Feature } from "@/lib/plans";
+import { Logo } from "@/components/brand";
+
+export { Logo };
 
 export type NavItem = {
   label: string;
@@ -45,17 +48,6 @@ const AREA_LABEL: Record<Area, string> = {
 
 function isActive(pathname: string, to: string) {
   return pathname === to || (!Object.values(AREA_HOME).includes(to) && pathname.startsWith(to));
-}
-
-export function Logo({ className }: { className?: string }) {
-  return (
-    <span className={cn("flex items-center gap-2.5", className)}>
-      <span className="grid size-8 place-items-center rounded-[10px] bg-primary text-primary-foreground">
-        <span className="text-sm font-semibold">B</span>
-      </span>
-      <span className="text-[0.95rem] font-semibold tracking-tight">Boendeplattformen</span>
-    </span>
-  );
 }
 
 export function meQueryOptions(fn: () => Promise<unknown>) {

@@ -57,6 +57,12 @@
   --color-info-foreground: var(--info-foreground);
   --color-info-soft: var(--info-soft);
 
+  --color-navy: var(--navy);
+  --color-navy-soft: var(--navy-soft);
+  --color-glow: var(--glow);
+  --color-glow-soft: var(--glow-soft);
+  --color-leaf: var(--leaf);
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -122,6 +128,13 @@
   --info-foreground: oklch(0.99 0.002 250);
   --info-soft: oklch(0.955 0.03 245);
 
+  /* Varumärke: djupblå hus, varmt tänt fönster, grönska. */
+  --navy: oklch(0.32 0.08 256);
+  --navy-soft: oklch(0.87 0.03 252);
+  --glow: oklch(0.82 0.14 78);
+  --glow-soft: oklch(0.95 0.05 85);
+  --leaf: oklch(0.72 0.1 150);
+
   --chart-1: oklch(0.43 0.117 251);
   --chart-2: oklch(0.62 0.09 220);
   --chart-3: oklch(0.52 0.115 152);
@@ -139,6 +152,11 @@
 }
 
 .dark {
+  --navy: oklch(0.42 0.08 256);
+  --navy-soft: oklch(0.32 0.04 256);
+  --glow: oklch(0.84 0.14 80);
+  --glow-soft: oklch(0.35 0.06 80);
+  --leaf: oklch(0.6 0.09 150);
   --background: oklch(0.19 0.018 258);
   --foreground: oklch(0.96 0.004 250);
   --surface: oklch(0.235 0.02 258);
@@ -201,4 +219,65 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card);
+}
+
+/* Levande illustrationer: fönster som tänds och kort som svävar. */
+@keyframes window-glow {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  35%,
+  70% {
+    opacity: 1;
+  }
+}
+
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes nfc-wave {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+@utility animate-window {
+  animation: window-glow 7s ease-in-out infinite;
+}
+
+@utility animate-float {
+  animation: float-soft 6s ease-in-out infinite;
+}
+
+@utility animate-nfc {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: nfc-wave 2.4s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-window,
+  .animate-float,
+  .animate-nfc {
+    animation: none;
+  }
+  .animate-window {
+    opacity: 1;
+  }
 }
