@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DataRow, EmptyState, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
-import { StatusPill } from "@/components/status-badge";
-import { dateLong, docTypeLabel, kr } from "@/lib/format";
+import { InspectionStatusPill, StatusPill } from "@/components/status-badge";
+import { dateLong, docTypeLabel, inspectionKindLabels, kr } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/app/boende")({
   head: () => ({
@@ -136,8 +136,71 @@ function MyHome() {
             </ul>
           )}
         </Panel>
+
+        <InspectionsPanel inspections={data.inspections} />
       </div>
     </div>
+  );
+}
+
+type Inspection = Awaited<ReturnType<typeof getMyHome>>["inspections"][number];
+
+const dateTime = new Intl.DateTimeFormat("sv-SE", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+function InspectionsPanel({ inspections }: { inspections: Inspection[] }) {
+  const upcoming = inspections
+    .filter((i) => i.status === "planned")
+    .sort((a, b) => ((a.scheduled_at ?? "") < (b.scheduled_at ?? "") ? -1 : 1));
+  const done = inspections.filter((i) => i.status === "completed");
+
+  return (
+    <Panel
+      title="Besiktningar"
+      description="Planerade besiktningar och protokoll för din bostad och fastighet"
+      className="lg:col-span-2"
+    >
+      {inspections.length === 0 ? (
+        <EmptyState title="Inga besiktningar" />
+      ) : (
+        <ul className="space-y-3">
+          {[...upcoming, ...done].map((i) => (
+            <li key={i.id} className="rounded-xl border border-border p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">
+                    {inspectionKindLabels[i.kind as keyof typeof inspectionKindLabels] ?? i.kind}
+                    {i.unit_id ? "" : " · hela fastigheten"}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {i.status === "completed"
+                      ? `Genomförd ${dateLong(i.completed_at ?? i.scheduled_at)}`
+                      : i.scheduled_at
+                        ? dateTime.format(new Date(i.scheduled_at))
+                        : "Tid meddelas senare"}
+                    {i.inspector_name ? ` · ${i.inspector_name}` : ""}
+                  </p>
+                </div>
+                <InspectionStatusPill status={i.status} result={i.result} />
+              </div>
+              {i.status === "planned" && i.note ? (
+                <p className="mt-3 text-sm text-muted-foreground">{i.note}</p>
+              ) : null}
+              {i.status === "completed" && i.protocol ? (
+                <p className="mt-3 whitespace-pre-line rounded-lg bg-muted/50 p-3 text-sm">
+                  {i.protocol}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
   );
 }
 

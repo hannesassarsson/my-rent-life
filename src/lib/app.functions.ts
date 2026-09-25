@@ -4,7 +4,12 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { hasPermission, homeFor, permissionsFor, type Permission } from "@/lib/permissions";
-import { priorityLabels, requestStatusLabels } from "@/lib/format";
+import {
+  inspectionKindLabels,
+  inspectionResultLabels,
+  priorityLabels,
+  requestStatusLabels,
+} from "@/lib/format";
 
 type Db = SupabaseClient<Database>;
 
@@ -158,12 +163,22 @@ export const getMyHome = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const me = await loadMe(supabase, context.userId);
-    const { data: documents } = await supabase
-      .from("documents")
-      .select("id, title, doc_type, file_kind, file_size, unit_id, storage_path, created_at")
-      .order("created_at", { ascending: false });
-    return { me, documents: documents ?? [] };
+    const [me, documents, inspections] = await Promise.all([
+      loadMe(supabase, context.userId),
+      supabase
+        .from("documents")
+        .select("id, title, doc_type, file_kind, file_size, unit_id, storage_path, created_at")
+        .order("created_at", { ascending: false }),
+      // Radreglerna begränsar till den egna lägenheten och fastigheten.
+      supabase
+        .from("inspections")
+        .select(
+          "id, kind, status, scheduled_at, completed_at, inspector_name, note, result, protocol, unit_id",
+        )
+        .neq("status", "cancelled")
+        .order("scheduled_at", { ascending: false }),
+    ]);
+    return { me, documents: documents.data ?? [], inspections: inspections.data ?? [] };
   });
 
 export const getMyRequests = createServerFn({ method: "GET" })
@@ -1948,5 +1963,201 @@ export const deleteDocument = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (doc?.storage_path) await supabase.storage.from("files").remove([doc.storage_path]);
+    return { ok: true };
+  });
+
+/* ----------------------------- BESIKTNINGAR ----------------------------- */
+
+const inspectionKind = z.enum([
+  "periodic",
+  "move_in",
+  "move_out",
+  "ovk",
+  "elevator",
+  "fire",
+  "other",
+]);
+export type InspectionKind = z.infer<typeof inspectionKind>;
+const inspectionResult = z.enum(["approved", "remarks", "failed"]);
+export type InspectionResult = z.infer<typeof inspectionResult>;
+
+/** Aviserar de boende i en lägenhet, eller i hela fastigheten om ingen lägenhet anges. */
+async function notifyAffectedResidents(
+  supabase: Db,
+  orgId: string,
+  target: { unitId: string | null; propertyId: string },
+  notification: { title: string; body: string; link: string },
+) {
+  const query = supabase
+    .from("residencies")
+    .select("user_id, units!inner(id, buildings!inner(property_id))")
+    .eq("organization_id", orgId)
+    .eq("status", "active")
+    .not("user_id", "is", null);
+  const { data, error } = target.unitId
+    ? await query.eq("unit_id", target.unitId)
+    : await query.eq("units.buildings.property_id", target.propertyId);
+  if (error) throw new Error(error.message);
+  const userIds = [...new Set((data ?? []).map((r) => r.user_id as string))];
+  if (userIds.length === 0) return;
+  const { error: notifyError } = await supabase
+    .from("notifications")
+    .insert(userIds.map((user_id) => ({ organization_id: orgId, user_id, ...notification })));
+  if (notifyError) throw new Error(notifyError.message);
+}
+
+export const getAdminInspections = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase as Db;
+    const { me, orgId } = await requirePermission(supabase, context.userId, "inspections.view");
+    const [inspections, properties, units] = await Promise.all([
+      supabase
+        .from("inspections")
+        .select("*, units(unit_number, address), properties(name)")
+        .eq("organization_id", orgId)
+        .order("scheduled_at", { ascending: true, nullsFirst: false }),
+      supabase.from("properties").select("id, name").eq("organization_id", orgId).order("name"),
+      supabase
+        .from("units")
+        .select("id, unit_number, address, buildings(property_id)")
+        .eq("organization_id", orgId)
+        .order("unit_number"),
+    ]);
+    if (inspections.error) throw new Error(inspections.error.message);
+    return {
+      inspections: inspections.data ?? [],
+      properties: properties.data ?? [],
+      units: (units.data ?? []).map((u) => ({
+        id: u.id,
+        label: `${u.unit_number} · ${u.address}`,
+        propertyId: u.buildings?.property_id ?? null,
+      })),
+      canEdit: hasPermission(me.roles, "inspections.edit"),
+    };
+  });
+
+export const saveInspection = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      id: id.optional(),
+      kind: inspectionKind,
+      propertyId: id,
+      unitId: id.nullable(),
+      scheduledAt: z.string().datetime({ offset: true }),
+      inspectorName: shortText.optional(),
+      note: longText.optional(),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "inspections.edit");
+    const row = {
+      organization_id: orgId,
+      kind: data.kind,
+      property_id: data.propertyId,
+      unit_id: data.unitId,
+      scheduled_at: data.scheduledAt,
+      inspector_name: data.inspectorName || null,
+      note: data.note || null,
+    };
+    const { error } = data.id
+      ? await supabase
+          .from("inspections")
+          .update(row)
+          .eq("id", data.id)
+          .eq("organization_id", orgId)
+      : await supabase.from("inspections").insert(row);
+    if (error) throw new Error(error.message);
+
+    const when = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Europe/Stockholm",
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(data.scheduledAt));
+    await notifyAffectedResidents(
+      supabase,
+      orgId,
+      { unitId: data.unitId, propertyId: data.propertyId },
+      {
+        title: data.id ? "Ändrad tid för besiktning" : "Besiktning planerad",
+        body: `${inspectionKindLabels[data.kind]} ${when}.${data.note ? ` ${data.note}` : ""}`.slice(
+          0,
+          1000,
+        ),
+        link: "/app/boende",
+      },
+    );
+    return { ok: true };
+  });
+
+export const completeInspection = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      id,
+      result: inspectionResult,
+      protocol: longText.optional(),
+      inspectorName: shortText.optional(),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "inspections.edit");
+    const { data: before } = await supabase
+      .from("inspections")
+      .select("status")
+      .eq("id", data.id)
+      .eq("organization_id", orgId)
+      .maybeSingle();
+    if (!before) throw new Error("Besiktningen hittades inte");
+    // Ett ändrat protokoll behåller datumet och aviseras inte igen.
+    const firstTime = before.status !== "completed";
+    const { data: inspection, error } = await supabase
+      .from("inspections")
+      .update({
+        status: "completed",
+        ...(firstTime ? { completed_at: new Date().toISOString() } : {}),
+        result: data.result,
+        protocol: data.protocol || null,
+        ...(data.inspectorName ? { inspector_name: data.inspectorName } : {}),
+      })
+      .eq("id", data.id)
+      .eq("organization_id", orgId)
+      .select("kind, unit_id, property_id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!inspection) throw new Error("Besiktningen hittades inte");
+    if (firstTime && inspection.unit_id && inspection.property_id) {
+      await notifyAffectedResidents(
+        supabase,
+        orgId,
+        { unitId: inspection.unit_id, propertyId: inspection.property_id },
+        {
+          title: "Protokoll från besiktningen",
+          body: `${inspectionKindLabels[inspection.kind as InspectionKind] ?? "Besiktningen"} är klar: ${inspectionResultLabels[data.result].toLowerCase()}.`,
+          link: "/app/boende",
+        },
+      );
+    }
+    return { ok: true };
+  });
+
+export const cancelInspection = createServerFn({ method: "POST" })
+  .inputValidator(byIdSchema)
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "inspections.edit");
+    const { error } = await supabase
+      .from("inspections")
+      .update({ status: "cancelled" })
+      .eq("id", data.id)
+      .eq("organization_id", orgId);
+    if (error) throw new Error(error.message);
     return { ok: true };
   });

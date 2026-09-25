@@ -121,3 +121,19 @@ export function authorRoleLabel(role: string) {
   if (role === "board_member") return "Styrelsen";
   return "Förvaltning";
 }
+
+export const inspectionKindLabels = {
+  periodic: "Lägenhetsbesiktning",
+  move_in: "Inflyttningsbesiktning",
+  move_out: "Avflyttningsbesiktning",
+  ovk: "OVK (ventilation)",
+  elevator: "Hissbesiktning",
+  fire: "Brandskyddskontroll",
+  other: "Övrig besiktning",
+} as const;
+
+export const inspectionResultLabels = {
+  approved: "Godkänd",
+  remarks: "Godkänd med anmärkningar",
+  failed: "Underkänd",
+} as const;

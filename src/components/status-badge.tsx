@@ -1,5 +1,10 @@
 import { cn } from "@/lib/utils";
-import { priorityLabels, requestStatusLabels, projectStatusLabels } from "@/lib/format";
+import {
+  inspectionResultLabels,
+  priorityLabels,
+  requestStatusLabels,
+  projectStatusLabels,
+} from "@/lib/format";
 
 type Tone = "success" | "warning" | "danger" | "info" | "neutral";
 
@@ -86,4 +91,25 @@ export function PaymentStatusBadge({ status }: { status: string }) {
 export function ProjectStatusBadge({ status }: { status: string }) {
   const tone: Tone = status === "done" ? "success" : status === "in_progress" ? "warning" : "info";
   return <StatusPill tone={tone}>{projectStatusLabels[status] ?? status}</StatusPill>;
+}
+
+const inspectionResultTones: Record<string, Tone> = {
+  approved: "success",
+  remarks: "warning",
+  failed: "danger",
+};
+
+/** Status för en besiktning: planerad, inställd eller resultatet. */
+export function InspectionStatusPill({
+  status,
+  result,
+}: {
+  status: string;
+  result: string | null;
+}) {
+  if (status === "cancelled") return <StatusPill tone="neutral">Inställd</StatusPill>;
+  if (status !== "completed") return <StatusPill tone="info">Planerad</StatusPill>;
+  const label =
+    inspectionResultLabels[result as keyof typeof inspectionResultLabels] ?? "Genomförd";
+  return <StatusPill tone={inspectionResultTones[result ?? ""] ?? "neutral"}>{label}</StatusPill>;
 }

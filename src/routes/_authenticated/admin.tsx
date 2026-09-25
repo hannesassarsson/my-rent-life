@@ -13,6 +13,7 @@ import {
   MessageSquare,
   CalendarDays,
   FileText,
+  ClipboardCheck,
 } from "lucide-react";
 
 import { AppShell, type NavItem } from "@/components/app-shell";
@@ -54,6 +55,12 @@ const items: NavItem[] = [
     to: "/admin/entreprenorer",
     icon: HardHat,
     permission: "contractors.view",
+  },
+  {
+    label: "Besiktningar",
+    to: "/admin/besiktningar",
+    icon: ClipboardCheck,
+    permission: "inspections.view",
   },
   { label: "Underhållsplan", to: "/admin/underhall", icon: Hammer, permission: "maintenance.view" },
   {

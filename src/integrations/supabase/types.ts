@@ -288,6 +288,9 @@ export type Database = {
       };
       inspections: {
         Row: {
+          protocol: string | null;
+          result: string | null;
+          property_id: string | null;
           completed_at: string | null;
           created_at: string;
           id: string;
@@ -300,6 +303,9 @@ export type Database = {
           unit_id: string | null;
         };
         Insert: {
+          protocol?: string | null;
+          result?: string | null;
+          property_id?: string | null;
           completed_at?: string | null;
           created_at?: string;
           id?: string;
@@ -312,6 +318,9 @@ export type Database = {
           unit_id?: string | null;
         };
         Update: {
+          protocol?: string | null;
+          result?: string | null;
+          property_id?: string | null;
           completed_at?: string | null;
           created_at?: string;
           id?: string;
@@ -329,6 +338,13 @@ export type Database = {
             columns: ["organization_id"];
             isOneToOne: false;
             referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "inspections_property_id_fkey";
+            columns: ["property_id"];
+            isOneToOne: false;
+            referencedRelation: "properties";
             referencedColumns: ["id"];
           },
           {
@@ -1233,6 +1249,7 @@ export type Database = {
         Returns: boolean;
       };
       my_unit_ids: { Args: { _user_id: string }; Returns: string[] };
+      my_property_ids: { Args: { _user_id: string }; Returns: string[] };
     };
     Enums: {
       app_role:

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export const Route = createFileRoute("/auth/aterstall")({
+export const Route = createFileRoute("/auth_/aterstall")({
   ssr: false,
   head: () => ({ meta: [{ title: "Nytt lösenord – Boendeplattformen" }] }),
   component: ResetPasswordPage,
