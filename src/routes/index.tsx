@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/app-shell";
 import { StatusPill } from "@/components/status-badge";
+import { SiteHeader } from "@/components/site-header";
 import { getPublicStats, type PublicStats } from "@/lib/public.functions";
 
 export const Route = createFileRoute("/")({
@@ -104,24 +105,6 @@ const features = [
   },
 ];
 
-function Header() {
-  return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
-        <Logo />
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" asChild>
-            <Link to="/auth">Logga in</Link>
-          </Button>
-          <Button asChild>
-            <Link to="/boka-demo">Boka demo</Link>
-          </Button>
-        </div>
-      </div>
-    </header>
-  );
-}
-
 function DashboardMockup() {
   return (
     <div className="card-surface w-full overflow-hidden shadow-[var(--shadow-lift)]">
@@ -167,7 +150,7 @@ function Landing() {
   const stats = Route.useLoaderData();
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <SiteHeader />
 
       <section className="mx-auto max-w-6xl px-5 pt-16 pb-20 sm:pt-24">
         <div className="grid items-center gap-14 lg:grid-cols-[1.05fr_1fr]">

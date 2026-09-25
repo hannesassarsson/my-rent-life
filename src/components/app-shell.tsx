@@ -2,7 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { Menu, LogOut, ArrowLeftRight } from "lucide-react";
+import { Menu, LogOut, ArrowLeftRight, Lock } from "lucide-react";
 
 import { getMe } from "@/lib/app.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui-kit";
 import { NotificationBell } from "@/components/notification-bell";
 import { ROLE_LABELS, type Permission } from "@/lib/permissions";
 import { orgProfileFor, type OrgTerm } from "@/lib/org-profile";
+import { PLANS, type Feature } from "@/lib/plans";
 
 export type NavItem = {
   label: string;
@@ -22,6 +23,10 @@ export type NavItem = {
   permission?: Permission;
   /** Ord från organisationsprofilen som ersätter label (t.ex. Medlemmar/Hyresgäster). */
   term?: OrgTerm;
+  /** Funktion som måste ingå i organisationens plan (boendes sidor). */
+  feature?: Feature;
+  /** Satt av skalet: rollen har behörighet men planen saknar funktionen. */
+  locked?: boolean;
 };
 
 export type Area = "resident" | "admin" | "contractor";
@@ -77,7 +82,10 @@ function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => v
             )}
           >
             <Icon className="size-4 shrink-0" />
-            {item.label}
+            <span className="flex-1">{item.label}</span>
+            {item.locked ? (
+              <Lock className="size-3.5 text-muted-foreground" aria-label="Ingår inte i planen" />
+            ) : null}
           </Link>
         );
       })}
@@ -102,6 +110,8 @@ export function AppShell({
   const [open, setOpen] = useState(false);
 
   const permissions: readonly string[] = me?.permissions ?? [];
+  const planLocked: readonly string[] = me?.planLocked ?? [];
+  const features: readonly string[] = me?.features ?? [];
   const orgProfile = orgProfileFor(me?.organization?.org_type);
   // Den boendes egen betalning följer lägenhetens upplåtelseform.
   const tenure = me?.residency?.tenure;
@@ -110,8 +120,18 @@ export function AppShell({
     : orgProfile;
   const visibleItems = me
     ? items
-        .filter((item) => !item.permission || permissions.includes(item.permission))
-        .map((item) => (item.term ? { ...item, label: profile[item.term] } : item))
+        .filter(
+          (item) =>
+            (!item.permission ||
+              permissions.includes(item.permission) ||
+              planLocked.includes(item.permission)) &&
+            (!item.feature || features.includes(item.feature)),
+        )
+        .map((item) => ({
+          ...item,
+          ...(item.term ? { label: profile[item.term] } : {}),
+          locked: !!item.permission && planLocked.includes(item.permission),
+        }))
     : [];
   const canUseArea =
     !me ||
@@ -124,7 +144,11 @@ export function AppShell({
     .filter((item) => isActive(pathname, item.to))
     .sort((a, b) => b.to.length - a.to.length)[0];
   const allowedHere =
-    !me || !currentItem?.permission || permissions.includes(currentItem.permission);
+    !me ||
+    ((!currentItem?.permission || permissions.includes(currentItem.permission)) &&
+      (!currentItem?.feature || features.includes(currentItem.feature)));
+  const lockedByPlan =
+    !!me && !!currentItem?.permission && planLocked.includes(currentItem.permission);
 
   // Skicka användaren till rätt del av appen om den inte hör hemma här.
   useEffect(() => {
@@ -228,8 +252,25 @@ export function AppShell({
 
       <main className="lg:pl-[270px]">
         <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 sm:py-10">
+          {area === "admin" && me ? (
+            <BillingBanner
+              access={me.access}
+              trialEndsAt={me.trialEndsAt}
+              canManage={permissions.includes("settings.edit")}
+            />
+          ) : null}
           {allowedHere ? (
             children
+          ) : lockedByPlan ? (
+            <UpgradeNotice
+              feature={currentItem?.label ?? "Funktionen"}
+              canManage={permissions.includes("settings.edit")}
+            />
+          ) : currentItem?.feature ? (
+            <EmptyState
+              title="Ingår inte i er plan"
+              description="Er förening eller hyresvärd har inte den här delen i sitt abonnemang."
+            />
           ) : (
             <EmptyState
               title="Behörighet saknas"
@@ -238,6 +279,80 @@ export function AppShell({
           )}
         </div>
       </main>
+    </div>
+  );
+}
+
+function daysUntil(iso: string | null) {
+  if (!iso) return null;
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 864e5));
+}
+
+/** Provperiod, misslyckad betalning eller skrivskyddat konto. */
+function BillingBanner({
+  access,
+  trialEndsAt,
+  canManage,
+}: {
+  access: "ok" | "trial" | "grace" | "locked";
+  trialEndsAt: string | null;
+  canManage: boolean;
+}) {
+  if (access === "ok") return null;
+  const days = daysUntil(trialEndsAt);
+  const text =
+    access === "trial"
+      ? `Provperiod: ${days === 1 ? "1 dag" : `${days} dagar`} kvar.`
+      : access === "grace"
+        ? "Den senaste betalningen gick inte igenom. Uppdatera betalningsuppgifterna för att undvika att kontot spärras."
+        : "Kontot är skrivskyddat eftersom abonnemanget inte är betalt. Ni kan fortfarande läsa allt.";
+  const tone =
+    access === "trial"
+      ? "border-info/30 bg-info-soft text-info"
+      : access === "grace"
+        ? "border-warning/40 bg-warning-soft text-warning-foreground"
+        : "border-danger/30 bg-danger-soft text-danger";
+  return (
+    <div
+      className={cn(
+        "mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm",
+        tone,
+      )}
+    >
+      <span>{text}</span>
+      {canManage ? (
+        <Button size="sm" variant={access === "trial" ? "outline" : "default"} asChild>
+          <Link to="/admin/abonnemang">
+            {access === "trial" ? "Välj plan" : "Till abonnemanget"}
+          </Link>
+        </Button>
+      ) : (
+        <span className="text-xs opacity-80">Kontakta er administratör.</span>
+      )}
+    </div>
+  );
+}
+
+function UpgradeNotice({ feature, canManage }: { feature: string; canManage: boolean }) {
+  return (
+    <div className="mx-auto max-w-md py-16 text-center">
+      <span className="mx-auto grid size-12 place-items-center rounded-full bg-muted">
+        <Lock className="size-5 text-muted-foreground" />
+      </span>
+      <h1 className="mt-4 text-xl font-semibold tracking-tight">
+        {feature} ingår i {PLANS.standard.name}
+      </h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Er nuvarande plan omfattar inte den här delen. Uppgradera för att få ekonomi, möten,
+        besiktningar, underhållsplan och entreprenörsportal.
+      </p>
+      {canManage ? (
+        <Button className="mt-6" asChild>
+          <Link to="/admin/abonnemang">Se planer</Link>
+        </Button>
+      ) : (
+        <p className="mt-6 text-xs text-muted-foreground">Kontakta er administratör.</p>
+      )}
     </div>
   );
 }

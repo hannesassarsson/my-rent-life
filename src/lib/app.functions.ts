@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { hasPermission, homeFor, permissionsFor, type Permission } from "@/lib/permissions";
+import { homeFor, permissionsFor, type Permission } from "@/lib/permissions";
+import { accessFor, applyPlan, type Feature } from "@/lib/plans";
 import {
   inspectionKindLabels,
   inspectionResultLabels,
@@ -54,7 +55,9 @@ async function loadMe(supabase: Db, userId: string) {
   const [{ data: profileRow }, { data: roleRows }, { data: residency }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id, full_name, email, phone, organization_id, organizations(id, name, org_type)")
+      .select(
+        "id, full_name, email, phone, organization_id, organizations(id, name, org_type, subscriptions(plan, status, trial_ends_at, past_due_since, is_demo, invoice_billing))",
+      )
       .eq("id", userId)
       .maybeSingle(),
     supabase.from("user_roles").select("role").eq("user_id", userId),
@@ -67,7 +70,8 @@ async function loadMe(supabase: Db, userId: string) {
       .eq("status", "active")
       .maybeSingle(),
   ]);
-  const org = profileRow?.organizations ?? null;
+  const orgRow = profileRow?.organizations ?? null;
+  const org = orgRow ? { id: orgRow.id, name: orgRow.name, org_type: orgRow.org_type } : null;
   const profile = profileRow
     ? {
         id: profileRow.id,
@@ -78,12 +82,20 @@ async function loadMe(supabase: Db, userId: string) {
       }
     : null;
   const roles = (roleRows ?? []).map((r) => r.role as string);
+  // Planen styr vilka funktioner som finns; ett spärrat konto får bara läsa.
+  const access = accessFor(orgRow?.subscriptions ?? null);
+  const { permissions, planLocked } = applyPlan(permissionsFor(roles), access);
 
   return {
     userId,
     profile,
     roles,
-    permissions: permissionsFor(roles),
+    permissions,
+    planLocked,
+    plan: access.plan,
+    access: access.state,
+    features: access.features,
+    trialEndsAt: orgRow?.subscriptions?.trial_ends_at ?? null,
     home: homeFor({ roles, hasResidency: !!residency }),
     isStaff: roles.some((r) => STAFF_ROLES.includes(r)),
     isContractor: roles.includes("contractor"),
@@ -100,11 +112,24 @@ function logFailure(what: string, result: { error: { message: string } | null })
   if (result.error) console.error(`${what}: ${result.error.message}`);
 }
 
-async function requirePermission(supabase: Db, userId: string, permission: Permission) {
+export async function requirePermission(supabase: Db, userId: string, permission: Permission) {
   const me = await loadMe(supabase, userId);
-  if (!hasPermission(me.roles, permission)) throw new Error("Behörighet saknas");
+  if (!me.permissions.includes(permission)) {
+    if (me.planLocked.includes(permission)) {
+      throw new Error("Ingår inte i er plan. Uppgradera under Abonnemang.");
+    }
+    if (me.access === "locked" && permissionsFor(me.roles).includes(permission)) {
+      throw new Error("Kontot är skrivskyddat tills abonnemanget är betalt.");
+    }
+    throw new Error("Behörighet saknas");
+  }
   if (!me.profile?.organization_id) throw new Error("Ingen organisation");
   return { me, orgId: me.profile.organization_id };
+}
+
+/** Spärr för boendes sidor med funktioner som inte ingår i alla planer. */
+function requireFeature(me: { features: Feature[] }, feature: Feature) {
+  if (!me.features.includes(feature)) throw new Error("Ingår inte i er förenings plan.");
 }
 
 /** Felkod P0001 är regelbrott från bokningstriggrarna, 23505 en dubbelbokning. */
@@ -163,11 +188,11 @@ export const getResidentDashboard = createServerFn({ method: "GET" })
 
     return {
       me,
-      payment: payment.data?.[0] ?? null,
+      payment: me.features.includes("economy") ? (payment.data?.[0] ?? null) : null,
       requests: requests.data ?? [],
       bookings: bookings.data ?? [],
       announcements: announcements.data ?? [],
-      meetings: meetings.data ?? [],
+      meetings: me.features.includes("meetings") ? (meetings.data ?? []) : [],
     };
   });
 
@@ -190,7 +215,11 @@ export const getMyHome = createServerFn({ method: "GET" })
         .neq("status", "cancelled")
         .order("scheduled_at", { ascending: false }),
     ]);
-    return { me, documents: documents.data ?? [], inspections: inspections.data ?? [] };
+    return {
+      me,
+      documents: documents.data ?? [],
+      inspections: me.features.includes("inspections") ? (inspections.data ?? []) : [],
+    };
   });
 
 export const getMyRequests = createServerFn({ method: "GET" })
@@ -484,6 +513,7 @@ export const getMeetings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
+    requireFeature(await loadMe(supabase, context.userId), "meetings");
     const [meetings, attendance] = await Promise.all([
       supabase.from("meetings").select("*").order("starts_at", { ascending: false }),
       supabase
@@ -505,6 +535,7 @@ export const setMeetingAttendance = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
     const me = await loadMe(supabase, context.userId);
+    requireFeature(me, "meetings");
     const orgId = me.profile?.organization_id;
     if (!orgId) throw new Error("Ingen organisation");
     const { error } = await supabase.from("meeting_attendance").upsert(
@@ -526,6 +557,7 @@ export const getMyEconomy = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
     const me = await loadMe(supabase, context.userId);
+    requireFeature(me, "economy");
     const { data } = await supabase
       .from("payments")
       .select("*")
@@ -565,7 +597,7 @@ export const sendMessage = createServerFn({ method: "POST" })
     const me = await loadMe(supabase, context.userId);
     const orgId = me.profile?.organization_id;
     if (!orgId) throw new Error("Ingen organisation");
-    const staff = hasPermission(me.roles, "messages.edit");
+    const staff = me.permissions.includes("messages.edit");
 
     if (!staff && data.threadKey !== `resident:${context.userId}`) {
       // Boende får bara skriva i trådar de redan är del av.
@@ -778,7 +810,7 @@ export const getAdminOverview = createServerFn({ method: "GET" })
         avgResolutionDays: Math.round(avgDays * 10) / 10,
         categories,
       },
-      economy: hasPermission(me.roles, "economy.view")
+      economy: me.permissions.includes("economy.view")
         ? {
             paidShare: pays.length ? Math.round((paid / pays.length) * 1000) / 10 : 0,
             unpaid: pays.length - paid,
@@ -787,8 +819,8 @@ export const getAdminOverview = createServerFn({ method: "GET" })
         : null,
       bookings: { occupancy },
       drafts: drafts.data ?? [],
-      projects: projects.data ?? [],
-      nextMeeting: meetings.data?.[0] ?? null,
+      projects: me.permissions.includes("maintenance.view") ? (projects.data ?? []) : [],
+      nextMeeting: me.features.includes("meetings") ? (meetings.data?.[0] ?? null) : null,
     };
   });
 
@@ -1789,6 +1821,7 @@ export const payMyPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
+    requireFeature(await loadMe(supabase, context.userId), "economy");
     const { error } = await supabase.rpc("pay_my_payment", {
       _payment_id: data.id,
       _method: data.method,
@@ -2073,7 +2106,7 @@ export const getAdminInspections = createServerFn({ method: "GET" })
         label: `${u.unit_number} · ${u.address}`,
         propertyId: u.buildings?.property_id ?? null,
       })),
-      canEdit: hasPermission(me.roles, "inspections.edit"),
+      canEdit: me.permissions.includes("inspections.edit"),
     };
   });
 

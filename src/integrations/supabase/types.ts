@@ -1105,6 +1105,71 @@ export type Database = {
           },
         ];
       };
+      subscriptions: {
+        Row: {
+          organization_id: string;
+          plan: string;
+          status: string;
+          billing_interval: string | null;
+          trial_ends_at: string | null;
+          current_period_end: string | null;
+          cancel_at_period_end: boolean;
+          past_due_since: string | null;
+          units_billed: number | null;
+          stripe_mode: string | null;
+          stripe_customer_id: string | null;
+          stripe_subscription_id: string | null;
+          invoice_billing: boolean;
+          is_demo: boolean;
+          synced_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          plan?: string;
+          status?: string;
+          billing_interval?: string | null;
+          trial_ends_at?: string | null;
+          current_period_end?: string | null;
+          cancel_at_period_end?: boolean;
+          past_due_since?: string | null;
+          units_billed?: number | null;
+          stripe_mode?: string | null;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          invoice_billing?: boolean;
+          is_demo?: boolean;
+          synced_at?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          organization_id?: string;
+          plan?: string;
+          status?: string;
+          billing_interval?: string | null;
+          trial_ends_at?: string | null;
+          current_period_end?: string | null;
+          cancel_at_period_end?: boolean;
+          past_due_since?: string | null;
+          units_billed?: number | null;
+          stripe_mode?: string | null;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          invoice_billing?: boolean;
+          is_demo?: boolean;
+          synced_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: true;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       units: {
         Row: {
           address: string;
@@ -1212,6 +1277,15 @@ export type Database = {
     };
     Functions: {
       public_demo_stats: { Args: never; Returns: Json };
+      apply_billing: {
+        Args: {
+          _secret: string;
+          _organization_id: string | null;
+          _stripe_customer_id: string | null;
+          _data: Json;
+        };
+        Returns: string | null;
+      };
       notify_request_reporter: {
         Args: { _request_id: string; _title: string; _body: string };
         Returns: undefined;

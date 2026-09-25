@@ -13,11 +13,13 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BokaDemoRouteImport } from './routes/boka-demo'
+import { Route as PriserRouteImport } from './routes/priser'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedEntreprenorRouteImport } from './routes/_authenticated/entreprenor'
 import { Route as AuthAterstallRouteImport } from './routes/auth_.aterstall'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as AuthenticatedAdminAbonnemangRouteImport } from './routes/_authenticated/admin.abonnemang'
 import { Route as AuthenticatedAdminBesiktningarRouteImport } from './routes/_authenticated/admin.besiktningar'
 import { Route as AuthenticatedAdminBokningarRouteImport } from './routes/_authenticated/admin.bokningar'
 import { Route as AuthenticatedAdminDokumentRouteImport } from './routes/_authenticated/admin.dokument'
@@ -39,6 +41,7 @@ import { Route as AuthenticatedAppMeddelandenRouteImport } from './routes/_authe
 import { Route as AuthenticatedAppMotenRouteImport } from './routes/_authenticated/app.moten'
 import { Route as AuthenticatedEntreprenorIndexRouteImport } from './routes/_authenticated/entreprenor.index'
 import { Route as AuthenticatedEntreprenorIdRouteImport } from './routes/_authenticated/entreprenor.$id'
+import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhook'
 import { Route as AuthenticatedAdminArendenIndexRouteImport } from './routes/_authenticated/admin.arenden.index'
 import { Route as AuthenticatedAdminArendenIdRouteImport } from './routes/_authenticated/admin.arenden.$id'
 import { Route as AuthenticatedAdminBoendeIndexRouteImport } from './routes/_authenticated/admin.boende.index'
@@ -63,6 +66,11 @@ const AuthRoute = AuthRouteImport.update({
 const BokaDemoRoute = BokaDemoRouteImport.update({
   id: '/boka-demo',
   path: '/boka-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PriserRoute = PriserRouteImport.update({
+  id: '/priser',
+  path: '/priser',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -91,6 +99,12 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminAbonnemangRoute =
+  AuthenticatedAdminAbonnemangRouteImport.update({
+    id: '/abonnemang',
+    path: '/abonnemang',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminBesiktningarRoute =
   AuthenticatedAdminBesiktningarRouteImport.update({
     id: '/besiktningar',
@@ -212,6 +226,11 @@ const AuthenticatedEntreprenorIdRoute =
     path: '/$id',
     getParentRoute: () => AuthenticatedEntreprenorRoute,
   } as any)
+const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
+  id: '/api/stripe/webhook',
+  path: '/api/stripe/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminArendenIndexRoute =
   AuthenticatedAdminArendenIndexRouteImport.update({
     id: '/arenden/',
@@ -253,10 +272,12 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/boka-demo': typeof BokaDemoRoute
+  '/priser': typeof PriserRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/entreprenor': typeof AuthenticatedEntreprenorRouteWithChildren
   '/auth/aterstall': typeof AuthAterstallRoute
+  '/admin/abonnemang': typeof AuthenticatedAdminAbonnemangRoute
   '/admin/besiktningar': typeof AuthenticatedAdminBesiktningarRoute
   '/admin/bokningar': typeof AuthenticatedAdminBokningarRoute
   '/admin/dokument': typeof AuthenticatedAdminDokumentRoute
@@ -276,6 +297,7 @@ export interface FileRoutesByFullPath {
   '/app/meddelanden': typeof AuthenticatedAppMeddelandenRoute
   '/app/moten': typeof AuthenticatedAppMotenRoute
   '/entreprenor/$id': typeof AuthenticatedEntreprenorIdRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/entreprenor/': typeof AuthenticatedEntreprenorIndexRoute
@@ -290,7 +312,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/boka-demo': typeof BokaDemoRoute
+  '/priser': typeof PriserRoute
   '/auth/aterstall': typeof AuthAterstallRoute
+  '/admin/abonnemang': typeof AuthenticatedAdminAbonnemangRoute
   '/admin/besiktningar': typeof AuthenticatedAdminBesiktningarRoute
   '/admin/bokningar': typeof AuthenticatedAdminBokningarRoute
   '/admin/dokument': typeof AuthenticatedAdminDokumentRoute
@@ -310,6 +334,7 @@ export interface FileRoutesByTo {
   '/app/meddelanden': typeof AuthenticatedAppMeddelandenRoute
   '/app/moten': typeof AuthenticatedAppMotenRoute
   '/entreprenor/$id': typeof AuthenticatedEntreprenorIdRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/entreprenor': typeof AuthenticatedEntreprenorIndexRoute
@@ -326,10 +351,12 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/boka-demo': typeof BokaDemoRoute
+  '/priser': typeof PriserRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/entreprenor': typeof AuthenticatedEntreprenorRouteWithChildren
   '/auth_/aterstall': typeof AuthAterstallRoute
+  '/_authenticated/admin/abonnemang': typeof AuthenticatedAdminAbonnemangRoute
   '/_authenticated/admin/besiktningar': typeof AuthenticatedAdminBesiktningarRoute
   '/_authenticated/admin/bokningar': typeof AuthenticatedAdminBokningarRoute
   '/_authenticated/admin/dokument': typeof AuthenticatedAdminDokumentRoute
@@ -349,6 +376,7 @@ export interface FileRoutesById {
   '/_authenticated/app/meddelanden': typeof AuthenticatedAppMeddelandenRoute
   '/_authenticated/app/moten': typeof AuthenticatedAppMotenRoute
   '/_authenticated/entreprenor/$id': typeof AuthenticatedEntreprenorIdRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/entreprenor/': typeof AuthenticatedEntreprenorIndexRoute
@@ -365,10 +393,12 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/boka-demo'
+    | '/priser'
     | '/admin'
     | '/app'
     | '/entreprenor'
     | '/auth/aterstall'
+    | '/admin/abonnemang'
     | '/admin/besiktningar'
     | '/admin/bokningar'
     | '/admin/dokument'
@@ -388,6 +418,7 @@ export interface FileRouteTypes {
     | '/app/meddelanden'
     | '/app/moten'
     | '/entreprenor/$id'
+    | '/api/stripe/webhook'
     | '/admin/'
     | '/app/'
     | '/entreprenor/'
@@ -402,7 +433,9 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/boka-demo'
+    | '/priser'
     | '/auth/aterstall'
+    | '/admin/abonnemang'
     | '/admin/besiktningar'
     | '/admin/bokningar'
     | '/admin/dokument'
@@ -422,6 +455,7 @@ export interface FileRouteTypes {
     | '/app/meddelanden'
     | '/app/moten'
     | '/entreprenor/$id'
+    | '/api/stripe/webhook'
     | '/admin'
     | '/app'
     | '/entreprenor'
@@ -437,10 +471,12 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/boka-demo'
+    | '/priser'
     | '/_authenticated/admin'
     | '/_authenticated/app'
     | '/_authenticated/entreprenor'
     | '/auth_/aterstall'
+    | '/_authenticated/admin/abonnemang'
     | '/_authenticated/admin/besiktningar'
     | '/_authenticated/admin/bokningar'
     | '/_authenticated/admin/dokument'
@@ -460,6 +496,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/meddelanden'
     | '/_authenticated/app/moten'
     | '/_authenticated/entreprenor/$id'
+    | '/api/stripe/webhook'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
     | '/_authenticated/entreprenor/'
@@ -476,7 +513,9 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   BokaDemoRoute: typeof BokaDemoRoute
+  PriserRoute: typeof PriserRoute
   AuthAterstallRoute: typeof AuthAterstallRoute
+  ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -507,6 +546,13 @@ declare module '@tanstack/react-router' {
       path: '/boka-demo'
       fullPath: '/boka-demo'
       preLoaderRoute: typeof BokaDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/priser': {
+      id: '/priser'
+      path: '/priser'
+      fullPath: '/priser'
+      preLoaderRoute: typeof PriserRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -542,6 +588,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/abonnemang': {
+      id: '/_authenticated/admin/abonnemang'
+      path: '/abonnemang'
+      fullPath: '/admin/abonnemang'
+      preLoaderRoute: typeof AuthenticatedAdminAbonnemangRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/besiktningar': {
@@ -691,6 +744,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEntreprenorIdRouteImport
       parentRoute: typeof AuthenticatedEntreprenorRoute
     }
+    '/api/stripe/webhook': {
+      id: '/api/stripe/webhook'
+      path: '/api/stripe/webhook'
+      fullPath: '/api/stripe/webhook'
+      preLoaderRoute: typeof ApiStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/arenden/': {
       id: '/_authenticated/admin/arenden/'
       path: '/arenden'
@@ -737,6 +797,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminAbonnemangRoute: typeof AuthenticatedAdminAbonnemangRoute
   AuthenticatedAdminBesiktningarRoute: typeof AuthenticatedAdminBesiktningarRoute
   AuthenticatedAdminBokningarRoute: typeof AuthenticatedAdminBokningarRoute
   AuthenticatedAdminDokumentRoute: typeof AuthenticatedAdminDokumentRoute
@@ -756,6 +817,7 @@ interface AuthenticatedAdminRouteChildren {
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminAbonnemangRoute: AuthenticatedAdminAbonnemangRoute,
   AuthenticatedAdminBesiktningarRoute: AuthenticatedAdminBesiktningarRoute,
   AuthenticatedAdminBokningarRoute: AuthenticatedAdminBokningarRoute,
   AuthenticatedAdminDokumentRoute: AuthenticatedAdminDokumentRoute,
@@ -842,7 +904,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   BokaDemoRoute: BokaDemoRoute,
+  PriserRoute: PriserRoute,
   AuthAterstallRoute: AuthAterstallRoute,
+  ApiStripeWebhookRoute: ApiStripeWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

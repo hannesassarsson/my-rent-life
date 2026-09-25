@@ -14,6 +14,7 @@ import {
   CalendarDays,
   FileText,
   ClipboardCheck,
+  CreditCard,
 } from "lucide-react";
 
 import { AppShell, type NavItem } from "@/components/app-shell";
@@ -63,6 +64,12 @@ const items: NavItem[] = [
     permission: "inspections.view",
   },
   { label: "Underhållsplan", to: "/admin/underhall", icon: Hammer, permission: "maintenance.view" },
+  {
+    label: "Abonnemang",
+    to: "/admin/abonnemang",
+    icon: CreditCard,
+    permission: "settings.edit",
+  },
   {
     label: "Inställningar",
     to: "/admin/installningar",
