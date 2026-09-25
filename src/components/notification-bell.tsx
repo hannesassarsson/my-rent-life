@@ -19,6 +19,8 @@ export function NotificationBell({ className }: { className?: string }) {
     queryKey: ["notifications"],
     queryFn: () => fn(),
     refetchInterval: 60_000,
+    // Notiserna är en bisak; ett fel här ska inte ta ner sidan.
+    throwOnError: false,
   });
 
   const mark = useMutation({

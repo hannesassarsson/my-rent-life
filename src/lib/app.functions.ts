@@ -49,31 +49,35 @@ export type AudienceScope = z.infer<typeof audienceScope>;
 export type ProjectStatus = z.infer<typeof projectStatus>;
 
 async function loadMe(supabase: Db, userId: string) {
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, full_name, email, phone, organization_id")
-    .eq("id", userId)
-    .maybeSingle();
-
-  const { data: roleRows } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+  // Tre oberoende frågor i stället för fyra i följd; organisationen följer
+  // med profilen.
+  const [{ data: profileRow }, { data: roleRows }, { data: residency }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, full_name, email, phone, organization_id, organizations(id, name, org_type)")
+      .eq("id", userId)
+      .maybeSingle(),
+    supabase.from("user_roles").select("role").eq("user_id", userId),
+    supabase
+      .from("residencies")
+      .select(
+        "id, resident_name, move_in_date, tenure, unit_id, units(id, unit_number, object_number, address, size_sqm, rooms, floor, tenure, monthly_amount, storage, parking, balcony, key_count, building_id, buildings(id, name, property_id, properties(id, name, address, postal_code, city)))",
+      )
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .maybeSingle(),
+  ]);
+  const org = profileRow?.organizations ?? null;
+  const profile = profileRow
+    ? {
+        id: profileRow.id,
+        full_name: profileRow.full_name,
+        email: profileRow.email,
+        phone: profileRow.phone,
+        organization_id: profileRow.organization_id,
+      }
+    : null;
   const roles = (roleRows ?? []).map((r) => r.role as string);
-
-  const { data: org } = profile?.organization_id
-    ? await supabase
-        .from("organizations")
-        .select("id, name, org_type")
-        .eq("id", profile.organization_id)
-        .maybeSingle()
-    : { data: null };
-
-  const { data: residency } = await supabase
-    .from("residencies")
-    .select(
-      "id, resident_name, move_in_date, tenure, unit_id, units(id, unit_number, object_number, address, size_sqm, rooms, floor, tenure, monthly_amount, storage, parking, balcony, key_count, building_id, buildings(id, name, property_id, properties(id, name, address, postal_code, city)))",
-    )
-    .eq("user_id", userId)
-    .eq("status", "active")
-    .maybeSingle();
 
   return {
     userId,
@@ -86,6 +90,14 @@ async function loadMe(supabase: Db, userId: string) {
     organization: org,
     residency,
   };
+}
+
+/**
+ * Följdskrivningar (händelselogg, notiser) ska inte fälla en åtgärd som redan
+ * är sparad, men fel ska synas i serverloggen i stället för att försvinna.
+ */
+function logFailure(what: string, result: { error: { message: string } | null }) {
+  if (result.error) console.error(`${what}: ${result.error.message}`);
 }
 
 async function requirePermission(supabase: Db, userId: string, permission: Permission) {
@@ -267,11 +279,14 @@ export const createRequest = createServerFn({ method: "POST" })
       .select("id, ticket_number, organization_id")
       .single();
     if (error) throw new Error(error.message);
-    await supabase.from("maintenance_events").insert({
-      organization_id: me.profile.organization_id,
-      request_id: created.id,
-      label: "Felanmälan skickad",
-    });
+    logFailure(
+      "Händelselogg",
+      await supabase.from("maintenance_events").insert({
+        organization_id: me.profile.organization_id,
+        request_id: created.id,
+        label: "Felanmälan skickad",
+      }),
+    );
     return created;
   });
 
@@ -315,27 +330,29 @@ export const addRequestComment = createServerFn({ method: "POST" })
       );
     }
 
-    if (data.action === "resolved") {
-      await supabase
+    if (data.action) {
+      const resolved = data.action === "resolved";
+      const { data: updated, error } = await supabase
         .from("maintenance_requests")
-        .update({ status: "resolved", resolved_at: new Date().toISOString() })
-        .eq("id", data.requestId);
-      await supabase.from("maintenance_events").insert({
-        organization_id: orgId,
-        request_id: data.requestId,
-        label: "Boende bekräftade att problemet är löst",
-      });
-    }
-    if (data.action === "still_broken") {
-      await supabase
-        .from("maintenance_requests")
-        .update({ status: "in_progress", resolved_at: null })
-        .eq("id", data.requestId);
-      await supabase.from("maintenance_events").insert({
-        organization_id: orgId,
-        request_id: data.requestId,
-        label: "Boende meddelade att problemet kvarstår",
-      });
+        .update(
+          resolved
+            ? { status: "resolved", resolved_at: new Date().toISOString() }
+            : { status: "in_progress", resolved_at: null },
+        )
+        .eq("id", data.requestId)
+        .select("id");
+      if (error) throw new Error(error.message);
+      if (!updated?.length) throw new Error("Ärendet kunde inte uppdateras");
+      logFailure(
+        "Händelselogg",
+        await supabase.from("maintenance_events").insert({
+          organization_id: orgId,
+          request_id: data.requestId,
+          label: resolved
+            ? "Boende bekräftade att problemet är löst"
+            : "Boende meddelade att problemet kvarstår",
+        }),
+      );
     }
     return { ok: true };
   });
@@ -573,24 +590,30 @@ export const sendMessage = createServerFn({ method: "POST" })
     });
     if (error) throw new Error(error.message);
     if (staff && data.residentUserId) {
-      await supabase.from("notifications").insert({
-        organization_id: orgId,
-        user_id: data.residentUserId,
-        title: `Nytt meddelande: ${data.subject ?? "från förvaltningen"}`,
-        body: data.body.slice(0, 200),
-        link: "/app/meddelanden",
-      });
+      logFailure(
+        "Notis",
+        await supabase.from("notifications").insert({
+          organization_id: orgId,
+          user_id: data.residentUserId,
+          title: `Nytt meddelande: ${data.subject ?? "från förvaltningen"}`,
+          body: data.body.slice(0, 200),
+          link: "/app/meddelanden",
+        }),
+      );
     }
     return { ok: true };
   });
 
 /** Notis till den som anmälde ett ärende (tyst om det misslyckas). */
 async function notifyReporter(supabase: Db, requestId: string, title: string, body: string) {
-  await supabase.rpc("notify_request_reporter", {
-    _request_id: requestId,
-    _title: title,
-    _body: body,
-  });
+  logFailure(
+    "Notis",
+    await supabase.rpc("notify_request_reporter", {
+      _request_id: requestId,
+      _title: title,
+      _body: body,
+    }),
+  );
 }
 
 /** Notis till alla medlemmar i organisationen utom avsändaren. */
@@ -606,9 +629,12 @@ async function notifyMembers(
     .eq("organization_id", orgId)
     .neq("id", exceptUserId);
   if (!members || members.length === 0) return;
-  await supabase
-    .from("notifications")
-    .insert(members.map((m) => ({ organization_id: orgId, user_id: m.id, ...notification })));
+  logFailure(
+    "Notiser",
+    await supabase
+      .from("notifications")
+      .insert(members.map((m) => ({ organization_id: orgId, user_id: m.id, ...notification }))),
+  );
 }
 
 /** Hur personal presenteras i meddelanden och kommentarer. */
@@ -824,13 +850,16 @@ export const updateRequestAdmin = createServerFn({ method: "POST" })
         .maybeSingle();
       if (c) labels.push(`Entreprenör tilldelad: ${c.company}`);
     }
-    for (const label of labels) {
-      await supabase
-        .from("maintenance_events")
-        .insert({ organization_id: orgId, request_id: data.id, label });
+    if (labels.length > 0) {
+      logFailure(
+        "Händelselogg",
+        await supabase
+          .from("maintenance_events")
+          .insert(labels.map((label) => ({ organization_id: orgId, request_id: data.id, label }))),
+      );
     }
     if (data.note?.trim()) {
-      await supabase.from("maintenance_comments").insert({
+      const { error } = await supabase.from("maintenance_comments").insert({
         organization_id: orgId,
         request_id: data.id,
         author_user_id: context.userId,
@@ -838,6 +867,7 @@ export const updateRequestAdmin = createServerFn({ method: "POST" })
         author_role: "staff",
         body: data.note.trim(),
       });
+      if (error) throw new Error(error.message);
     }
     if (data.status || data.note?.trim()) {
       await notifyReporter(
@@ -1346,10 +1376,17 @@ export const updateContractorJob = createServerFn({ method: "POST" })
       labels.push(`Tid bokad: ${stockholmTime.format(new Date(data.scheduledAt))}`);
     if (status === "in_progress") labels.push(`${company} har påbörjat arbetet`);
     if (status === "resolved") labels.push(`${company} har markerat ärendet som åtgärdat`);
-    for (const label of labels) {
-      await supabase
-        .from("maintenance_events")
-        .insert({ organization_id: job.organization_id, request_id: data.id, label });
+    if (labels.length > 0) {
+      logFailure(
+        "Händelselogg",
+        await supabase.from("maintenance_events").insert(
+          labels.map((label) => ({
+            organization_id: job.organization_id,
+            request_id: data.id,
+            label,
+          })),
+        ),
+      );
     }
     if (data.note?.trim()) {
       const { error } = await supabase.from("maintenance_comments").insert({
@@ -1880,11 +1917,14 @@ export const addRequestAttachments = createServerFn({ method: "POST" })
       })),
     );
     if (error) throw new Error(error.message);
-    await supabase.from("maintenance_events").insert({
-      organization_id: request.organization_id,
-      request_id: request.id,
-      label: data.files.length === 1 ? "Bild bifogad" : `${data.files.length} bilder bifogade`,
-    });
+    logFailure(
+      "Händelselogg",
+      await supabase.from("maintenance_events").insert({
+        organization_id: request.organization_id,
+        request_id: request.id,
+        label: data.files.length === 1 ? "Bild bifogad" : `${data.files.length} bilder bifogade`,
+      }),
+    );
     return { ok: true };
   });
 

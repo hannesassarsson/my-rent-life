@@ -32,6 +32,7 @@ export function RequestAttachments({
     queryFn: () => signedUrls(paths),
     enabled: paths.length > 0,
     staleTime: 30 * 60_000,
+    throwOnError: false,
   });
 
   async function onFiles(list: FileList | null) {
