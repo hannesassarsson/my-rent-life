@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useOrgProfile } from "@/lib/use-org-profile";
 import { OpenFileButton } from "@/components/open-file-button";
 import { ArrowLeft } from "lucide-react";
 
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/_authenticated/admin/boende/$id")({
 function ResidentDetail() {
   const { id } = useParams({ from: "/_authenticated/admin/boende/$id" });
   const fn = useServerFn(getResidentDetail);
+  const { profile } = useOrgProfile();
   const { data, isPending } = useQuery({
     queryKey: ["resident-detail", id],
     queryFn: () => fn({ data: { id } }),
@@ -34,7 +36,7 @@ function ResidentDetail() {
         to="/admin/boende"
         className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="size-4" /> Boenderegistret
+        <ArrowLeft className="size-4" /> {profile.residentPlural}
       </Link>
 
       <PageHeader

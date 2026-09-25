@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useOrgProfile } from "@/lib/use-org-profile";
 import { OpenFileButton } from "@/components/open-file-button";
 import { toast } from "sonner";
 
@@ -33,6 +34,7 @@ export const Route = createFileRoute("/_authenticated/app/boende")({
 
 function MyHome() {
   const fn = useServerFn(getMyHome);
+  const { profile } = useOrgProfile();
   const { data, isPending } = useQuery({ queryKey: ["my-home"], queryFn: () => fn() });
 
   if (isPending || !data) return <LoadingBlock rows={4} />;
@@ -46,7 +48,7 @@ function MyHome() {
   if (!unit) {
     return (
       <div>
-        <PageHeader title="Mitt boende" />
+        <PageHeader title={profile.homeLabel} />
         <EmptyState
           title="Ingen bostad kopplad"
           description="Kontakta förvaltningen för att koppla ditt konto till din bostad."
@@ -58,7 +60,7 @@ function MyHome() {
   return (
     <div>
       <PageHeader
-        title="Mitt boende"
+        title={profile.homeLabel}
         subtitle={`${unit.address} · Lägenhet ${unit.unit_number}`}
         action={
           <StatusPill tone={unit.tenure === "rented" ? "info" : "success"}>

@@ -42,7 +42,7 @@ function EconomyPage() {
   return (
     <div>
       <PageHeader
-        title="Ekonomi"
+        title={isRent ? "Min hyra" : "Min avgift"}
         subtitle={
           isRent ? "Din hyra och betalningshistorik" : "Din månadsavgift och betalningshistorik"
         }

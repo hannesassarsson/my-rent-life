@@ -26,7 +26,13 @@ const items: NavItem[] = [
     icon: Building2,
     permission: "properties.view",
   },
-  { label: "Boende", to: "/admin/boende", icon: Users, permission: "residents.view" },
+  {
+    label: "Boende",
+    to: "/admin/boende",
+    icon: Users,
+    permission: "residents.view",
+    term: "residentPlural",
+  },
   { label: "Ekonomi", to: "/admin/ekonomi", icon: Wallet, permission: "economy.view" },
   { label: "Bokningar", to: "/admin/bokningar", icon: CalendarCheck, permission: "bookings.edit" },
   {

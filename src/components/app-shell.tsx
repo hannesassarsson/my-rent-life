@@ -12,6 +12,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import { EmptyState } from "@/components/ui-kit";
 import { NotificationBell } from "@/components/notification-bell";
 import { ROLE_LABELS, type Permission } from "@/lib/permissions";
+import { orgProfileFor, type OrgTerm } from "@/lib/org-profile";
 
 export type NavItem = {
   label: string;
@@ -19,6 +20,8 @@ export type NavItem = {
   icon: React.ComponentType<{ className?: string }>;
   /** Behörighet som krävs för att se menyvalet och sidan. */
   permission?: Permission;
+  /** Ord från organisationsprofilen som ersätter label (t.ex. Medlemmar/Hyresgäster). */
+  term?: OrgTerm;
 };
 
 export type Area = "resident" | "admin" | "contractor";
@@ -99,8 +102,16 @@ export function AppShell({
   const [open, setOpen] = useState(false);
 
   const permissions: readonly string[] = me?.permissions ?? [];
+  const orgProfile = orgProfileFor(me?.organization?.org_type);
+  // Den boendes egen betalning följer lägenhetens upplåtelseform.
+  const tenure = me?.residency?.tenure;
+  const profile = tenure
+    ? { ...orgProfile, feeWordLong: tenure === "rented" ? "Min hyra" : "Min avgift" }
+    : orgProfile;
   const visibleItems = me
-    ? items.filter((item) => !item.permission || permissions.includes(item.permission))
+    ? items
+        .filter((item) => !item.permission || permissions.includes(item.permission))
+        .map((item) => (item.term ? { ...item, label: profile[item.term] } : item))
     : [];
   const canUseArea =
     !me ||

@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useOrgProfile } from "@/lib/use-org-profile";
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
@@ -40,6 +41,7 @@ type MoveIn = {
 
 function AdminResidents() {
   const fn = useServerFn(getAdminResidents);
+  const { profile } = useOrgProfile();
   const moveInFn = useServerFn(moveInResident);
   const can = useCan();
   const qc = useQueryClient();
@@ -81,7 +83,7 @@ function AdminResidents() {
   return (
     <div>
       <PageHeader
-        title="Boende"
+        title={profile.residentPlural}
         subtitle={
           data ? `${activeCount} boende · ${data.vacantUnits.length} lediga lägenheter` : undefined
         }

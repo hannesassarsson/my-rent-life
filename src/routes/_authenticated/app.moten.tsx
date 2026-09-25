@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useOrgProfile } from "@/lib/use-org-profile";
 import { toast } from "sonner";
 
 import { getMeetings, setMeetingAttendance } from "@/lib/app.functions";
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/_authenticated/app/moten")({
 
 function MeetingsPage() {
   const fn = useServerFn(getMeetings);
+  const { profile } = useOrgProfile();
   const attend = useServerFn(setMeetingAttendance);
   const qc = useQueryClient();
   const { data, isPending } = useQuery({ queryKey: ["meetings"], queryFn: () => fn() });
@@ -45,7 +47,14 @@ function MeetingsPage() {
 
   return (
     <div>
-      <PageHeader title="Möten" subtitle="Stämmor och informationsmöten – anmäl dig här" />
+      <PageHeader
+        title={profile.meetingsLabel}
+        subtitle={
+          profile.kind === "brf"
+            ? "Stämmor och informationsmöten – anmäl dig här"
+            : "Informationsmöten och husmöten – anmäl dig här"
+        }
+      />
 
       <div className="space-y-5">
         <Panel title="Kommande möten">
