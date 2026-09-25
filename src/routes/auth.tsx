@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/app-shell";
+import { startDemo } from "@/lib/public.functions";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -32,6 +34,7 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const startDemoFn = useServerFn(startDemo);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -48,6 +51,23 @@ function AuthPage() {
       navigate({ to: "/app", replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Något gick fel");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function demoLogin(kind: "admin" | "resident") {
+    setBusy(true);
+    try {
+      const session = await startDemoFn({ data: { kind } });
+      const { error } = await supabase.auth.setSession({
+        access_token: session.accessToken,
+        refresh_token: session.refreshToken,
+      });
+      if (error) throw error;
+      navigate({ to: kind === "admin" ? "/admin" : "/app", replace: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Kunde inte starta demon");
     } finally {
       setBusy(false);
     }
@@ -98,6 +118,32 @@ function AuthPage() {
             Konton skapas av din förening eller hyresvärd. Kontakta förvaltningen om du saknar
             inloggning.
           </p>
+
+          <div id="demo" className="mt-10 rounded-xl border border-border bg-surface-muted p-4">
+            <p className="text-sm font-medium">Testa demomiljön</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              BRF Solrosen med 184 lägenheter, ärenden, bokningar och ekonomi. Demon återställs
+              varje natt.
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                disabled={busy}
+                onClick={() => demoLogin("resident")}
+              >
+                Som boende
+              </Button>
+              <Button
+                variant="secondary"
+                className="flex-1"
+                disabled={busy}
+                onClick={() => demoLogin("admin")}
+              >
+                Som förvaltare
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 

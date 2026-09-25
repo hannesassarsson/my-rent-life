@@ -97,7 +97,7 @@ function Header() {
             <Link to="/auth">Logga in</Link>
           </Button>
           <Button asChild>
-            <Link to="/auth">Boka demo</Link>
+            <Link to="/boka-demo">Boka demo</Link>
           </Button>
         </div>
       </div>
@@ -168,10 +168,12 @@ function Landing() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button size="lg" asChild>
-                <Link to="/auth">Boka demo</Link>
+                <Link to="/boka-demo">Boka demo</Link>
               </Button>
               <Button size="lg" variant="secondary" asChild>
-                <Link to="/auth">Se demomiljön</Link>
+                <Link to="/auth" hash="demo">
+                  Se demomiljön
+                </Link>
               </Button>
             </div>
             <dl className="mt-12 grid max-w-lg grid-cols-3 gap-6">
@@ -272,7 +274,7 @@ function Landing() {
         </p>
         <div className="mt-8 flex justify-center gap-3">
           <Button size="lg" asChild>
-            <Link to="/auth">Boka demo</Link>
+            <Link to="/boka-demo">Boka demo</Link>
           </Button>
         </div>
       </section>
