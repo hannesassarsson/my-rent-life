@@ -5,7 +5,8 @@
 //   BANKID_OIDC_ISSUER ........ t.ex. https://boendeplattformen-test.criipto.id
 //   BANKID_CLIENT_ID .......... klient-id (i Criipto: "Client ID/Realm")
 //   BANKID_CLIENT_SECRET ...... klienthemlighet (kodflöde med hemlighet)
-//   BANKID_ACR ................ metod, standard urn:grn:authn:se:bankid
+//   BANKID_ACR ................ valfri metod, t.ex. urn:grn:authn:se:bankid:same-device
+//                               (utan värde visar leverantören sitt eget val)
 //   SUPABASE_SERVICE_ROLE_KEY . behövs för att skapa inloggningen i Supabase
 //   BILLING_SECRET ............ serverns hemlighet: signerar tillståndet och
 //                               är nyckeln för personnummer-HMAC:en
@@ -119,7 +120,7 @@ export async function authorizeUrl(opts: {
 }) {
   const d = await discovery();
   const url = new URL(d.authorization_endpoint);
-  url.search = new URLSearchParams({
+  const params = new URLSearchParams({
     response_type: "code",
     client_id: process.env["BANKID_CLIENT_ID"] ?? "",
     redirect_uri: opts.redirectUri,
@@ -128,9 +129,12 @@ export async function authorizeUrl(opts: {
     nonce: opts.nonce,
     code_challenge: pkceChallenge(opts.verifier),
     code_challenge_method: "S256",
-    acr_values: process.env["BANKID_ACR"] ?? "urn:grn:authn:se:bankid",
     ui_locales: "sv",
-  }).toString();
+  });
+  // Utan BANKID_ACR visar leverantören sitt eget val (samma enhet eller QR).
+  const acr = process.env["BANKID_ACR"];
+  if (acr) params.set("acr_values", acr);
+  url.search = params.toString();
   return url.toString();
 }
 
