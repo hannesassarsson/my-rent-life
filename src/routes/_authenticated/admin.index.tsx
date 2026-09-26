@@ -13,7 +13,10 @@ export const Route = createFileRoute("/_authenticated/admin/")({
 
 function AdminOverview() {
   const fn = useServerFn(getAdminOverview);
-  const { data, isPending, error } = useQuery({ queryKey: ["admin-overview"], queryFn: () => fn() });
+  const { data, isPending, error } = useQuery({
+    queryKey: ["admin-overview"],
+    queryFn: () => fn(),
+  });
 
   if (error) {
     return (
@@ -34,28 +37,28 @@ function AdminOverview() {
       <PageHeader title="Översikt" subtitle={data.me.organization?.name ?? undefined} />
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi
-          label="Lägenheter"
-          value={data.units.total}
-          hint={`${data.units.active} aktiva`}
-        />
+        <Kpi label="Lägenheter" value={data.units.total} hint={`${data.units.active} aktiva`} />
         <Kpi
           label="Felanmälningar"
           value={data.requests.open}
           tone={data.requests.urgent > 0 ? "warning" : "default"}
           hint={`${data.requests.newToday} nya idag · ${data.requests.urgent} akuta`}
         />
-        <Kpi
-          label="Betalningsgrad"
-          value={`${data.economy.paidShare.toString().replace(".", ",")} %`}
-          tone="success"
-          hint={`${data.economy.unpaid} obetalda · ${kr(data.economy.billed)} fakturerat`}
-        />
-        <Kpi
-          label="Kommunikation"
-          value={data.drafts.length}
-          hint="opublicerade meddelanden"
-        />
+        {data.economy ? (
+          <Kpi
+            label="Betalningsgrad"
+            value={`${data.economy.paidShare.toString().replace(".", ",")} %`}
+            tone="success"
+            hint={`${data.economy.unpaid} obetalda · ${kr(data.economy.billed)} fakturerat`}
+          />
+        ) : (
+          <Kpi
+            label="Bokningar"
+            value={data.bookings.occupancy.length}
+            hint="bokningsbara resurser"
+          />
+        )}
+        <Kpi label="Kommunikation" value={data.drafts.length} hint="opublicerade meddelanden" />
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -67,7 +70,7 @@ function AdminOverview() {
                 <span>{data.requests.stale} felanmälningar har väntat längre än 7 dagar.</span>
               </li>
             ) : null}
-            {data.economy.unpaid > 0 ? (
+            {data.economy && data.economy.unpaid > 0 ? (
               <li className="flex items-start gap-3">
                 <StatusPill tone="warning">Ekonomi</StatusPill>
                 <span>{data.economy.unpaid} avgifter eller hyror är obetalda denna period.</span>
@@ -90,8 +93,8 @@ function AdminOverview() {
             <li className="flex items-start gap-3">
               <StatusPill tone="info">Ärenden</StatusPill>
               <span>
-                Genomsnittlig lösningstid är {String(data.requests.avgResolutionDays).replace(".", ",")}{" "}
-                dagar.
+                Genomsnittlig lösningstid är{" "}
+                {String(data.requests.avgResolutionDays).replace(".", ",")} dagar.
               </span>
             </li>
           </ul>
@@ -111,7 +114,10 @@ function AdminOverview() {
                       <span className="text-muted-foreground tnum">{share} %</span>
                     </div>
                     <div className="mt-1.5 h-1.5 rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${share}%` }} />
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{ width: `${share}%` }}
+                      />
                     </div>
                   </li>
                 );

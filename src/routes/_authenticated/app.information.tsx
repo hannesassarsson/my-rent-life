@@ -13,7 +13,10 @@ export const Route = createFileRoute("/_authenticated/app/information")({
   head: () => ({
     meta: [
       { title: "Information – Boendeplattformen" },
-      { name: "description", content: "Nyheter, driftinfo och viktiga meddelanden för ditt boende." },
+      {
+        name: "description",
+        content: "Nyheter, driftinfo och viktiga meddelanden för ditt boende.",
+      },
       { property: "og:title", content: "Information – Boendeplattformen" },
       { property: "og:description", content: "Nyheter och driftinfo för ditt boende." },
     ],

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useOrgProfile } from "@/lib/use-org-profile";
 import { toast } from "sonner";
 
 import { getMeetings, setMeetingAttendance } from "@/lib/app.functions";
@@ -23,12 +24,13 @@ export const Route = createFileRoute("/_authenticated/app/moten")({
 
 function MeetingsPage() {
   const fn = useServerFn(getMeetings);
+  const { profile } = useOrgProfile();
   const attend = useServerFn(setMeetingAttendance);
   const qc = useQueryClient();
   const { data, isPending } = useQuery({ queryKey: ["meetings"], queryFn: () => fn() });
 
   const mutation = useMutation({
-    mutationFn: (v: { meetingId: string; status: string }) => attend({ data: v }),
+    mutationFn: (v: { meetingId: string; status: "attending" | "declined" }) => attend({ data: v }),
     onSuccess: () => {
       toast.success("Din anmälan är sparad");
       void qc.invalidateQueries({ queryKey: ["meetings"] });
@@ -45,7 +47,14 @@ function MeetingsPage() {
 
   return (
     <div>
-      <PageHeader title="Möten" subtitle="Stämmor och informationsmöten – anmäl dig här" />
+      <PageHeader
+        title={profile.meetingsLabel}
+        subtitle={
+          profile.kind === "brf"
+            ? "Stämmor och informationsmöten – anmäl dig här"
+            : "Informationsmöten och husmöten – anmäl dig här"
+        }
+      />
 
       <div className="space-y-5">
         <Panel title="Kommande möten">
@@ -111,19 +120,27 @@ function MeetingsPage() {
           ) : (
             <ul className="space-y-3">
               {past.map((m) => (
-                <li
-                  key={m.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-4"
-                >
-                  <div>
-                    <p className="text-sm font-medium">{m.title}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{dateLong(m.starts_at)}</p>
-                  </div>
-                  {m.protocol_url ? (
-                    <StatusPill tone="success">Protokoll finns</StatusPill>
-                  ) : (
-                    <StatusPill tone="neutral">Protokoll saknas</StatusPill>
-                  )}
+                <li key={m.id} className="rounded-xl border border-border p-4">
+                  <details className="group">
+                    <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium">{m.title}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {dateLong(m.starts_at)}
+                        </p>
+                      </div>
+                      {m.protocol ? (
+                        <StatusPill tone="success">Läs protokollet</StatusPill>
+                      ) : (
+                        <StatusPill tone="neutral">Protokoll saknas</StatusPill>
+                      )}
+                    </summary>
+                    {m.protocol ? (
+                      <p className="mt-4 border-t border-border pt-4 text-sm whitespace-pre-line text-muted-foreground">
+                        {m.protocol}
+                      </p>
+                    ) : null}
+                  </details>
                 </li>
               ))}
             </ul>

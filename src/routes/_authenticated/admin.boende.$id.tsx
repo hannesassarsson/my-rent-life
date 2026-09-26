@@ -1,9 +1,14 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useOrgProfile } from "@/lib/use-org-profile";
+import { OpenFileButton } from "@/components/open-file-button";
 import { ArrowLeft } from "lucide-react";
 
 import { getResidentDetail } from "@/lib/app.functions";
+import { ResidentActions } from "@/components/resident-actions";
+import { MemberBankId } from "@/components/bankid";
+import { StatusPill } from "@/components/status-badge";
 import { PageHeader, Panel, DataRow, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { PaymentStatusBadge, RequestStatusBadge } from "@/components/status-badge";
 import { dateLong, dateShort, kr, monthName, timeRange } from "@/lib/format";
@@ -15,6 +20,7 @@ export const Route = createFileRoute("/_authenticated/admin/boende/$id")({
 function ResidentDetail() {
   const { id } = useParams({ from: "/_authenticated/admin/boende/$id" });
   const fn = useServerFn(getResidentDetail);
+  const { profile } = useOrgProfile();
   const { data, isPending } = useQuery({
     queryKey: ["resident-detail", id],
     queryFn: () => fn({ data: { id } }),
@@ -31,7 +37,7 @@ function ResidentDetail() {
         to="/admin/boende"
         className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="size-4" /> Boenderegistret
+        <ArrowLeft className="size-4" /> {profile.residentPlural}
       </Link>
 
       <PageHeader
@@ -39,7 +45,15 @@ function ResidentDetail() {
         subtitle={`${unit?.address ?? ""} · Lägenhet ${unit?.unit_number ?? ""} · ${
           data.residency.tenure === "rented" ? "Hyresgäst" : "Medlem"
         }`}
+        action={<ResidentActions residency={data.residency} />}
       />
+      {data.residency.status !== "active" ? (
+        <div className="-mt-4 mb-6">
+          <StatusPill tone="neutral">
+            Utflyttad {data.residency.move_out_date ? dateLong(data.residency.move_out_date) : ""}
+          </StatusPill>
+        </div>
+      ) : null}
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Panel title="Kontaktuppgifter">
@@ -49,6 +63,7 @@ function ResidentDetail() {
             <DataRow label="Inflyttning" value={dateLong(data.residency.move_in_date)} />
             <DataRow label="Konto" value={data.residency.user_id ? "Aktiverat" : "Ej aktiverat"} />
           </dl>
+          {data.residency.user_id ? <MemberBankId userId={data.residency.user_id} /> : null}
         </Panel>
 
         <Panel title="Lägenheten">
@@ -133,7 +148,7 @@ function ResidentDetail() {
               {data.documents.map((d) => (
                 <li key={d.id} className="flex items-center justify-between gap-3 py-3 text-sm">
                   <span>{d.title}</span>
-                  <span className="text-xs text-muted-foreground uppercase">{d.file_kind}</span>
+                  <OpenFileButton path={d.storage_path} />
                 </li>
               ))}
             </ul>

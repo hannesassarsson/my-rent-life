@@ -4,10 +4,15 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { getMaintenanceProjects, saveMaintenanceProject } from "@/lib/app.functions";
+import {
+  getMaintenanceProjects,
+  saveMaintenanceProject,
+  type ProjectStatus,
+} from "@/lib/app.functions";
 import { PageHeader, Panel, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { ProjectStatusBadge } from "@/components/status-badge";
 import { kr } from "@/lib/format";
+import { useCan } from "@/lib/use-can";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,7 +37,7 @@ export const Route = createFileRoute("/_authenticated/admin/underhall")({
   component: AdminMaintenance,
 });
 
-type Draft = { id?: string; title: string; year: number; status: string; note: string };
+type Draft = { id?: string; title: string; year: number; status: ProjectStatus; note: string };
 
 const emptyDraft = (): Draft => ({
   title: "",
@@ -43,6 +48,7 @@ const emptyDraft = (): Draft => ({
 
 function AdminMaintenance() {
   const fn = useServerFn(getMaintenanceProjects);
+  const can = useCan();
   const saveFn = useServerFn(saveMaintenanceProject);
   const queryClient = useQueryClient();
   const { data, isPending } = useQuery({ queryKey: ["admin-projects"], queryFn: () => fn() });
@@ -75,9 +81,11 @@ function AdminMaintenance() {
               if (!v) setDraft(emptyDraft());
             }}
           >
-            <DialogTrigger asChild>
-              <Button>Nytt projekt</Button>
-            </DialogTrigger>
+            {can("maintenance.edit") ? (
+              <DialogTrigger asChild>
+                <Button>Nytt projekt</Button>
+              </DialogTrigger>
+            ) : null}
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>{draft.id ? "Redigera projekt" : "Nytt projekt"}</DialogTitle>
@@ -105,7 +113,7 @@ function AdminMaintenance() {
                     <Label>Status</Label>
                     <Select
                       value={draft.status}
-                      onValueChange={(v) => setDraft({ ...draft, status: v })}
+                      onValueChange={(v) => setDraft({ ...draft, status: v as ProjectStatus })}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -168,12 +176,13 @@ function AdminMaintenance() {
                       <Button
                         size="sm"
                         variant="outline"
+                        hidden={!can("maintenance.edit")}
                         onClick={() => {
                           setDraft({
                             id: p.id,
                             title: p.title,
                             year: p.year,
-                            status: p.status as string,
+                            status: p.status as ProjectStatus,
                             note: p.note ?? "",
                           });
                           setOpen(true);

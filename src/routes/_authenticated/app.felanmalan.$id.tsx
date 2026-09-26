@@ -5,9 +5,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { addRequestComment, getRequestDetail } from "@/lib/app.functions";
+import { RequestAttachments } from "@/components/request-attachments";
 import { DataRow, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
 import { PriorityBadge, RequestStatusBadge } from "@/components/status-badge";
-import { dateTime } from "@/lib/format";
+import { authorRoleLabel, dateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -15,7 +16,10 @@ export const Route = createFileRoute("/_authenticated/app/felanmalan/$id")({
   head: () => ({
     meta: [
       { title: "Mitt ärende – Boendeplattformen" },
-      { name: "description", content: "Följ ditt ärende: status, tidslinje och svar från förvaltningen." },
+      {
+        name: "description",
+        content: "Följ ditt ärende: status, tidslinje och svar från förvaltningen.",
+      },
       { property: "og:title", content: "Mitt ärende – Boendeplattformen" },
       { property: "og:description", content: "Följ status och kommunikation för ditt ärende." },
     ],
@@ -76,6 +80,8 @@ function RequestPage() {
             </p>
           </Panel>
 
+          <RequestAttachments request={r} attachments={data.attachments} canUpload={true} />
+
           <Panel title="Tidslinje">
             <ol className="space-y-4">
               {data.events.map((e) => (
@@ -104,8 +110,7 @@ function RequestPage() {
                   <p className="text-xs font-medium">
                     {c.author_name}{" "}
                     <span className="text-muted-foreground">
-                      · {c.author_role === "resident" ? "Boende" : "Förvaltning"} ·{" "}
-                      {dateTime(c.created_at)}
+                      · {authorRoleLabel(c.author_role)} · {dateTime(c.created_at)}
                     </span>
                   </p>
                   <p className="mt-1.5 text-sm whitespace-pre-line">{c.body}</p>
@@ -153,9 +158,7 @@ function RequestPage() {
             <DataRow label="Akut" value={r.is_urgent ? "Ja" : "Nej"} />
             <DataRow label="Ansvarig" value={r.assignee_name ?? "Inte tilldelat"} />
             <DataRow label="Entreprenör" value={r.contractors?.company ?? "–"} />
-            {r.contractors?.phone ? (
-              <DataRow label="Telefon" value={r.contractors.phone} />
-            ) : null}
+            {r.contractors?.phone ? <DataRow label="Telefon" value={r.contractors.phone} /> : null}
             <DataRow
               label="Bostad"
               value={r.units ? `${r.units.unit_number} · ${r.units.address}` : "–"}

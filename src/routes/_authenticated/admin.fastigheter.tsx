@@ -1,15 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import { toast } from "sonner";
 
-import { getAdminProperties, getAdminUnits } from "@/lib/app.functions";
+import { getAdminProperties, getAdminUnits, updateUnit } from "@/lib/app.functions";
 import { PageHeader, Panel, Kpi, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { StatusPill } from "@/components/status-badge";
 import { kr } from "@/lib/format";
+import { useCan } from "@/lib/use-can";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/_authenticated/admin/fastigheter")({
   component: AdminProperties,
@@ -21,6 +34,8 @@ function AdminProperties() {
   const { data, isPending } = useQuery({ queryKey: ["admin-properties"], queryFn: () => propFn() });
   const { data: units } = useQuery({ queryKey: ["admin-units"], queryFn: () => unitFn() });
   const [q, setQ] = useState("");
+  const [editing, setEditing] = useState<Unit | null>(null);
+  const can = useCan();
 
   const filteredUnits = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -108,7 +123,9 @@ function AdminProperties() {
                       <th className="px-3 py-3 text-left font-medium">Yta</th>
                       <th className="px-3 py-3 text-left font-medium">Rum</th>
                       <th className="px-3 py-3 text-left font-medium">Form</th>
+                      <th className="px-3 py-3 text-left font-medium">Status</th>
                       <th className="px-5 py-3 text-right font-medium">Månadsbelopp</th>
+                      {can("properties.edit") ? <th className="px-5 py-3" /> : null}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -121,7 +138,19 @@ function AdminProperties() {
                         <td className="px-3 py-3">
                           {u.tenure === "rented" ? "Hyresrätt" : "Bostadsrätt"}
                         </td>
+                        <td className="px-3 py-3">
+                          <StatusPill tone={u.status === "active" ? "success" : "warning"}>
+                            {unitStatusLabels[u.status] ?? u.status}
+                          </StatusPill>
+                        </td>
                         <td className="px-5 py-3 text-right tnum">{kr(u.monthly_amount)}</td>
+                        {can("properties.edit") ? (
+                          <td className="px-5 py-3 text-right">
+                            <Button size="sm" variant="outline" onClick={() => setEditing(u)}>
+                              Redigera
+                            </Button>
+                          </td>
+                        ) : null}
                       </tr>
                     ))}
                   </tbody>
@@ -131,6 +160,169 @@ function AdminProperties() {
           )}
         </TabsContent>
       </Tabs>
+
+      <UnitDialog unit={editing} onClose={() => setEditing(null)} />
     </div>
+  );
+}
+
+type Unit = Awaited<ReturnType<typeof getAdminUnits>>[number];
+
+const unitStatusLabels: Record<string, string> = {
+  active: "Uthyrd",
+  vacant: "Ledig",
+  renovation: "Renovering",
+};
+
+type UnitDraft = {
+  monthlyAmount: string;
+  sizeSqm: string;
+  rooms: string;
+  tenure: "owned" | "rented";
+  status: "active" | "vacant" | "renovation";
+  storage: string;
+  parking: string;
+  keyCount: string;
+  balcony: boolean;
+};
+
+function UnitDialog({ unit, onClose }: { unit: Unit | null; onClose: () => void }) {
+  const updateFn = useServerFn(updateUnit);
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<UnitDraft | null>(null);
+  const [forId, setForId] = useState<string | null>(null);
+
+  if (unit && forId !== unit.id) {
+    setForId(unit.id);
+    setDraft({
+      monthlyAmount: String(unit.monthly_amount ?? ""),
+      sizeSqm: String(unit.size_sqm ?? ""),
+      rooms: String(unit.rooms ?? ""),
+      tenure: unit.tenure,
+      status: (unit.status in unitStatusLabels ? unit.status : "active") as UnitDraft["status"],
+      storage: unit.storage ?? "",
+      parking: unit.parking ?? "",
+      keyCount: String(unit.key_count),
+      balcony: unit.balcony,
+    });
+  }
+
+  const save = useMutation({
+    mutationFn: (d: UnitDraft) =>
+      updateFn({
+        data: {
+          id: unit!.id,
+          monthlyAmount: Number(d.monthlyAmount),
+          sizeSqm: Number(d.sizeSqm),
+          rooms: Number(d.rooms),
+          tenure: d.tenure,
+          status: d.status,
+          storage: d.storage,
+          parking: d.parking,
+          keyCount: Number(d.keyCount),
+          balcony: d.balcony,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Lägenheten är sparad");
+      void qc.invalidateQueries({ queryKey: ["admin-units"] });
+      void qc.invalidateQueries({ queryKey: ["admin-properties"] });
+      setForId(null);
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const field = (key: keyof UnitDraft, label: string, type = "text") => (
+    <div className="space-y-2">
+      <Label htmlFor={`unit-${key}`}>{label}</Label>
+      <Input
+        id={`unit-${key}`}
+        type={type}
+        value={String(draft?.[key] ?? "")}
+        onChange={(e) => setDraft(draft ? { ...draft, [key]: e.target.value } : draft)}
+      />
+    </div>
+  );
+
+  return (
+    <Dialog
+      open={!!unit}
+      onOpenChange={(v) => {
+        if (!v) {
+          setForId(null);
+          onClose();
+        }
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {unit ? `${unit.address} · lägenhet ${unit.unit_number}` : "Lägenhet"}
+          </DialogTitle>
+        </DialogHeader>
+        {draft ? (
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {field("monthlyAmount", "Månadsbelopp (kr)", "number")}
+              {field("sizeSqm", "Yta (m²)", "number")}
+              {field("rooms", "Rum", "number")}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={draft.status}
+                  onValueChange={(v) => setDraft({ ...draft, status: v as UnitDraft["status"] })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(unitStatusLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Upplåtelseform</Label>
+                <Select
+                  value={draft.tenure}
+                  onValueChange={(v) => setDraft({ ...draft, tenure: v as UnitDraft["tenure"] })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="owned">Bostadsrätt</SelectItem>
+                    <SelectItem value="rented">Hyresrätt</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {field("storage", "Förråd")}
+              {field("parking", "Parkering")}
+            </div>
+            <div className="grid items-end gap-3 sm:grid-cols-2">
+              {field("keyCount", "Antal nycklar", "number")}
+              <label className="flex items-center gap-2 pb-2 text-sm">
+                <Checkbox
+                  checked={draft.balcony}
+                  onCheckedChange={(v) => setDraft({ ...draft, balcony: v === true })}
+                />
+                Balkong
+              </label>
+            </div>
+            <Button className="w-full" disabled={save.isPending} onClick={() => save.mutate(draft)}>
+              {save.isPending ? "Sparar…" : "Spara"}
+            </Button>
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   );
 }

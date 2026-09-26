@@ -5,14 +5,18 @@ export function kr(amount: number | string | null | undefined) {
 
 export function dateLong(value: string | Date | null | undefined) {
   if (!value) return "–";
-  return new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "long", year: "numeric" }).format(
-    new Date(value),
-  );
+  return new Intl.DateTimeFormat("sv-SE", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(value));
 }
 
 export function dateShort(value: string | Date | null | undefined) {
   if (!value) return "–";
-  return new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short" }).format(
+    new Date(value),
+  );
 }
 
 export function dateTime(value: string | Date | null | undefined) {
@@ -110,3 +114,26 @@ export const docTypeLabels: Record<string, string> = {
 export function docTypeLabel(type: string) {
   return docTypeLabels[type] ?? type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ");
 }
+
+export function authorRoleLabel(role: string) {
+  if (role === "resident") return "Boende";
+  if (role === "contractor") return "Entreprenör";
+  if (role === "board_member") return "Styrelsen";
+  return "Förvaltning";
+}
+
+export const inspectionKindLabels = {
+  periodic: "Lägenhetsbesiktning",
+  move_in: "Inflyttningsbesiktning",
+  move_out: "Avflyttningsbesiktning",
+  ovk: "OVK (ventilation)",
+  elevator: "Hissbesiktning",
+  fire: "Brandskyddskontroll",
+  other: "Övrig besiktning",
+} as const;
+
+export const inspectionResultLabels = {
+  approved: "Godkänd",
+  remarks: "Godkänd med anmärkningar",
+  failed: "Underkänd",
+} as const;

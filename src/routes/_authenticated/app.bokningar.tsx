@@ -88,7 +88,9 @@ function BookingsPage() {
     const cursor = new Date(`${date}T00:00:00`);
     cursor.setHours(openH ?? 0, openM ?? 0, 0, 0);
     const closing = new Date(`${date}T00:00:00`);
-    closing.setHours(closeH ?? 23, closeM ?? 0, 0, 0);
+    // 23:59 betyder öppet till midnatt, så att dygnspass (t.ex. gästrum) går att boka.
+    if (resource.open_to.slice(0, 5) >= "23:59") closing.setDate(closing.getDate() + 1);
+    else closing.setHours(closeH ?? 23, closeM ?? 0, 0, 0);
     while (cursor < closing) {
       const end = new Date(cursor.getTime() + resource.slot_minutes * 60000);
       if (end > closing) break;
@@ -97,7 +99,9 @@ function BookingsPage() {
     }
   }
 
-  const days = Array.from({ length: 14 }).map((_, i) => {
+  const daysAhead = resource?.days_ahead ?? 14;
+  const lastBookable = Date.now() + daysAhead * 864e5;
+  const days = Array.from({ length: daysAhead }).map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() + i);
     return d;
@@ -155,7 +159,9 @@ function BookingsPage() {
                       {new Intl.DateTimeFormat("sv-SE", { weekday: "short" }).format(d)}
                     </span>
                     <span className="mt-0.5 block text-muted-foreground">
-                      {new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short" }).format(d)}
+                      {new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short" }).format(
+                        d,
+                      )}
                     </span>
                   </button>
                 );
@@ -173,11 +179,12 @@ function BookingsPage() {
                     (b) => new Date(b.starts_at).getTime() === s.start.getTime(),
                   );
                   const past = s.start.getTime() < Date.now();
+                  const tooFar = s.start.getTime() > lastBookable;
                   return (
                     <button
                       key={s.start.toISOString()}
                       type="button"
-                      disabled={!!taken || past || book.isPending}
+                      disabled={!!taken || past || tooFar || book.isPending}
                       onClick={() =>
                         book.mutate({
                           startsAt: s.start.toISOString(),
@@ -186,14 +193,14 @@ function BookingsPage() {
                       }
                       className={cn(
                         "rounded-xl border px-3 py-3 text-sm font-medium transition",
-                        taken || past
+                        taken || past || tooFar
                           ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
                           : "border-border hover:border-primary hover:bg-accent",
                       )}
                     >
                       {timeRange(s.start.toISOString(), s.end.toISOString())}
                       <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                        {taken ? "Bokad" : past ? "Passerad" : "Ledig"}
+                        {taken ? "Bokad" : past ? "Passerad" : tooFar ? "Ej bokningsbar" : "Ledig"}
                       </span>
                     </button>
                   );
@@ -217,15 +224,21 @@ function BookingsPage() {
                     {dateLong(b.starts_at)} · {timeRange(b.starts_at, b.ends_at)}
                   </p>
                   {new Date(b.ends_at).getTime() > Date.now() ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-3"
-                      disabled={drop.isPending}
-                      onClick={() => drop.mutate(b.id)}
-                    >
-                      Avboka
-                    </Button>
+                    canCancel(b) ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        disabled={drop.isPending}
+                        onClick={() => drop.mutate(b.id)}
+                      >
+                        Avboka
+                      </Button>
+                    ) : (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        Kan avbokas senast {b.resources?.cancel_hours} timmar innan
+                      </p>
+                    )
                   ) : null}
                 </li>
               ))}
@@ -235,4 +248,9 @@ function BookingsPage() {
       </div>
     </div>
   );
+}
+
+function canCancel(b: { starts_at: string; resources: { cancel_hours: number } | null }) {
+  const hours = b.resources?.cancel_hours ?? 0;
+  return new Date(b.starts_at).getTime() - Date.now() >= hours * 3600_000;
 }
