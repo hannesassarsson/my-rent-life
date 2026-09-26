@@ -32,6 +32,21 @@ const DEMO_ROLES: { kind: DemoKind; label: string; description: string; to: stri
   },
 ];
 
+const AREA_HOMES = { resident: "/app", admin: "/admin", contractor: "/entreprenor" };
+
+/** Ett anrop som inte svarar ska ge ett fel i stället för att knappen hänger. */
+function withTimeout<T>(promise: Promise<T>, ms = 20_000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error("Det tog för lång tid. Ladda om sidan och försök igen.")),
+        ms,
+      ),
+    ),
+  ]);
+}
+
 /** Bara adresser inom appen, så att inloggningen inte kan skicka vidare till andra sajter. */
 const localPath = z
   .string()
@@ -73,6 +88,7 @@ function AuthPage() {
   const startDemoFn = useServerFn(startDemo);
   const resetFn = useServerFn(requestPasswordReset);
   const [mode, setMode] = useState<"login" | "reset" | "sent">("login");
+  const [demoKind, setDemoKind] = useState<DemoKind | null>(null);
   const bankIdFn = useServerFn(getBankIdAvailability);
   const { data: bankId } = useQuery({
     queryKey: ["bankid-availability"],
@@ -123,18 +139,28 @@ function AuthPage() {
 
   async function demoLogin(kind: DemoKind) {
     setBusy(true);
+    setDemoKind(kind);
     try {
-      const session = await startDemoFn({ data: { kind } });
-      const { error } = await supabase.auth.setSession({
-        access_token: session.accessToken,
-        refresh_token: session.refreshToken,
-      });
+      const session = await withTimeout(startDemoFn({ data: { kind } }));
+      // En gammal session i webbläsaren kan hålla inloggningslåset; släpp den
+      // lokalt först så att den nya sessionen inte fastnar i kö.
+      await withTimeout(supabase.auth.signOut({ scope: "local" }));
+      const { error } = await withTimeout(
+        supabase.auth.setSession({
+          access_token: session.accessToken,
+          refresh_token: session.refreshToken,
+        }),
+      );
       if (error) throw error;
-      void goHome(DEMO_ROLES.find((r) => r.kind === kind)?.to ?? "/app");
+      const home = DEMO_ROLES.find((r) => r.kind === kind)?.to ?? "/app";
+      // En sparad adress som bara är en startsida gäller inte vid byte av roll.
+      const target = redirect && !Object.values(AREA_HOMES).includes(redirect) ? redirect : home;
+      void navigate({ href: target, replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Kunde inte starta demon");
     } finally {
       setBusy(false);
+      setDemoKind(null);
     }
   }
 
@@ -275,7 +301,7 @@ function AuthPage() {
                 >
                   <span className="font-medium">{role.label}</span>
                   <span className="text-xs font-normal text-muted-foreground">
-                    {role.description}
+                    {demoKind === role.kind ? "Startar demon…" : role.description}
                   </span>
                 </Button>
               ))}
