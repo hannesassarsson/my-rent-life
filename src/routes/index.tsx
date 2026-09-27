@@ -46,12 +46,15 @@ export const Route = createFileRoute("/")({
 const nf = (digits: number) =>
   new Intl.NumberFormat("sv-SE", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
-/** Nyckeltalen visas bara om de gick att räkna fram. */
+/**
+ * Nyckeltal ur demoföreningen (inte riktiga kunder). Visas bara om de gick
+ * att räkna fram, och alltid märkta som exempeldata.
+ */
 function statRows(stats: PublicStats | null): [string, string][] {
   const rows: [string, string][] = [];
-  if (stats?.units) rows.push([nf(0).format(stats.units), "lägenheter i demo"]);
+  if (stats?.units) rows.push([nf(0).format(stats.units), "lägenheter"]);
   if (stats?.avgResolutionDays != null)
-    rows.push([`${nf(1).format(stats.avgResolutionDays)} dagar`, "snitt till löst ärende"]);
+    rows.push([`${nf(1).format(stats.avgResolutionDays)} dagar`, "i snitt till löst ärende"]);
   if (stats?.paidShare != null)
     rows.push([`${nf(1).format(stats.paidShare)} %`, "betalda avgifter senaste månaden"]);
   return rows;
@@ -230,14 +233,29 @@ function Landing() {
               </Link>{" "}
               – ingen registrering behövs.
             </p>
-            <dl className="mt-12 grid max-w-lg grid-cols-3 gap-6">
-              {statRows(stats).map(([value, label]) => (
-                <div key={label}>
-                  <dt className="text-xl font-semibold tnum">{value}</dt>
-                  <dd className="mt-1 text-xs text-muted-foreground">{label}</dd>
-                </div>
-              ))}
-            </dl>
+            {statRows(stats).length > 0 ? (
+              <figure className="mt-12 max-w-lg border-t border-border pt-5">
+                <figcaption className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span className="rounded-full border border-border bg-surface px-2 py-0.5 font-medium">
+                    Exempeldata
+                  </span>
+                  Så kan översikten se ut i din förening
+                </figcaption>
+                <dl className="mt-4 grid grid-cols-3 gap-6">
+                  {statRows(stats).map(([value, label]) => (
+                    <div key={label}>
+                      <dt className="text-lg font-semibold whitespace-nowrap tnum sm:text-xl">
+                        {value}
+                      </dt>
+                      <dd className="mt-1 text-xs text-muted-foreground">{label}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <p className="mt-3 text-xs text-muted-foreground/80">
+                  Siffrorna kommer från vår demoförening, inte från riktiga kunder.
+                </p>
+              </figure>
+            ) : null}
           </div>
           <HeroVisual />
         </div>
