@@ -5,7 +5,6 @@ import {
   Megaphone,
   Wallet,
   FolderOpen,
-  BarChart3,
   Sparkles,
   Building2,
   Users,
@@ -79,36 +78,50 @@ const audiences = [
   },
 ];
 
+/** Varje funktion beskrivs som problem, lösning och nytta för styrelsen. */
 const features = [
   {
     icon: Wrench,
-    title: "Felanmälningar på ett ställe",
-    body: "Boende anmäler med bilder direkt i appen. Varje ärende får status, ansvarig och historik – inga fler ärenden som fastnar i någons inkorg.",
+    title: "Felanmälan",
+    problem: "Felanmälningar kommer via mejl, lappar och telefonsamtal till olika personer.",
+    solution: "Alla felanmälningar samlas på ett ställe, med bilder, status och ansvarig.",
+    benefit: "Styrelsen får överblick och kan följa varje ärende från anmälan till åtgärd.",
   },
   {
     icon: CalendarCheck,
-    title: "Digitala bokningar",
-    body: "Tvättstuga, bastu, gästrum och festlokal bokas i appen med regler som ni själva sätter. Inga papperslistor att hålla ordning på.",
+    title: "Bokningar",
+    problem: "Bokningslistor på papper försvinner, skrivs över eller leder till dubbelbokningar.",
+    solution: "Tvättstuga, bastu, gästrum och lokaler bokas i appen enligt föreningens regler.",
+    benefit: "Ingen i styrelsen behöver hålla ordning på listor eller reda ut krockar.",
   },
   {
     icon: Megaphone,
-    title: "Enklare kommunikation",
-    body: "Nå alla boende, ett hus eller en enskild lägenhet med ett meddelande – i appen och via e-post eller sms.",
+    title: "Kommunikation",
+    problem: "Information på anslagstavlan och i mejl når inte alla boende.",
+    solution:
+      "Ett meddelande når alla, ett hus eller en lägenhet – i appen och via e-post eller sms.",
+    benefit: "Ett utskick räcker, och styrelsen ser att informationen har gått ut.",
   },
   {
     icon: FolderOpen,
-    title: "Information som boende hittar själva",
-    body: "Stadgar, trivselregler, protokoll och nyheter finns samlade, så att enkla frågor besvaras utan att styrelsen behöver svara.",
+    title: "Dokument och information",
+    problem: "Samma frågor om regler, tvättider och stadgar kommer till styrelsen gång på gång.",
+    solution: "Stadgar, trivselregler, protokoll och nyheter finns samlade i appen.",
+    benefit: "Boende hittar svaren själva, och styrelsen får färre enkla frågor.",
   },
   {
     icon: Wallet,
-    title: "Avgifter och ekonomi",
-    body: "Avier med OCR, förfallodatum och betalningshistorik. Boende ser sin avgift, styrelsen ser vad som är betalt.",
+    title: "Ekonomi",
+    problem: "Avgifter följs upp i kalkylark och bankutdrag som ingen annan hittar.",
+    solution: "Avier med OCR-nummer, förfallodatum och betalstatus på ett ställe.",
+    benefit: "Styrelsen ser direkt vad som är betalt och kan skicka påminnelser därifrån.",
   },
   {
-    icon: BarChart3,
-    title: "Överblick för styrelsen",
-    body: "Se vad som väntar, hur lång tid ärenden tar och vilka fel som återkommer – utan att sammanställa något för hand.",
+    icon: Sparkles,
+    title: "AI-assistent",
+    problem: "Det är lätt att missa ärenden som blivit liggande eller möten som närmar sig.",
+    solution: "Assistenten sammanställer varje dag det som behöver styrelsens uppmärksamhet.",
+    benefit: "Styrelsen ser snabbt vad som behöver göras, utan att gå igenom allt själv.",
   },
 ];
 
@@ -296,15 +309,30 @@ function Landing() {
           Det här får föreningen
         </h2>
         <p className="mt-4 max-w-2xl text-muted-foreground">
-          Mindre tid på administration och färre frågor till styrelsen – för att allt finns på ett
-          ställe, för både styrelse och boende.
+          Varje del av plattformen tar bort ett konkret moment i styrelsearbetet – så att mindre tid
+          går till administration och mer till föreningen.
         </p>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f) => (
             <div key={f.title} className="card-surface p-6">
-              <f.icon className="size-5 text-primary" />
-              <h3 className="mt-4 text-base font-semibold">{f.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{f.body}</p>
+              <h3 className="flex items-center gap-2 text-base font-semibold">
+                <f.icon className="size-5 text-primary" />
+                {f.title}
+              </h3>
+              <dl className="mt-4 space-y-3 text-sm leading-relaxed">
+                <div>
+                  <dt className="text-xs font-medium text-muted-foreground">Problem</dt>
+                  <dd className="mt-0.5 text-muted-foreground">{f.problem}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-primary">Lösning</dt>
+                  <dd className="mt-0.5">{f.solution}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-success">Nytta</dt>
+                  <dd className="mt-0.5 font-medium">{f.benefit}</dd>
+                </div>
+              </dl>
             </div>
           ))}
         </div>
