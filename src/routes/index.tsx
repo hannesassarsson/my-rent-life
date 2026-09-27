@@ -11,6 +11,8 @@ import {
   Users,
   ShieldCheck,
   KeyRound,
+  Check,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -27,13 +29,13 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "En modern boendeplattform för bostadsrättsföreningar, fastighetsägare och hyresgäster. Felanmälan, bokningar, ekonomi, dokument och kommunikation i ett system.",
+          "Mindre administration, färre mejltrådar och bättre koll för bostadsrättsföreningar och hyresvärdar. Felanmälan, bokningar, information och kommunikation med de boende i ett system.",
       },
       { property: "og:title", content: "Boendeplattformen – allt som rör ditt boende" },
       {
         property: "og:description",
         content:
-          "Felanmälan, bokningar, ekonomi, dokument, möten och kommunikation för föreningar, fastighetsägare och boende.",
+          "Mindre administration. Färre mejltrådar. Bättre koll. Felanmälan, bokningar och kommunikation med de boende på ett ställe.",
       },
     ],
   }),
@@ -67,7 +69,7 @@ const audiences = [
     icon: ShieldCheck,
     art: "board" as const,
     title: "För styrelsen",
-    body: "Ärenden, medlemsregister, information, möten och dokument samlat – med full historik och tydligt ansvar.",
+    body: "Ärenden, medlemsregister, information, möten och dokument samlat – med full historik, så att inget försvinner när styrelsen byts ut.",
   },
   {
     icon: Building2,
@@ -80,34 +82,51 @@ const audiences = [
 const features = [
   {
     icon: Wrench,
-    title: "Felanmälan",
-    body: "Guidat flöde, kategorier, bilder och akutmarkering. Tidslinje och kommentarer hela vägen till löst ärende.",
+    title: "Felanmälningar på ett ställe",
+    body: "Boende anmäler med bilder direkt i appen. Varje ärende får status, ansvarig och historik – inga fler ärenden som fastnar i någons inkorg.",
   },
   {
     icon: CalendarCheck,
-    title: "Bokningar",
-    body: "Tvättstuga, bastu, gästrum, festlokal, hobbyrum och laddplatser med regler som ni själva sätter.",
+    title: "Digitala bokningar",
+    body: "Tvättstuga, bastu, gästrum och festlokal bokas i appen med regler som ni själva sätter. Inga papperslistor att hålla ordning på.",
   },
   {
     icon: Megaphone,
-    title: "Kommunikation",
-    body: "Driftinformation och nyheter riktade till alla, en fastighet, ett hus eller enskilda lägenheter.",
-  },
-  {
-    icon: Wallet,
-    title: "Ekonomi",
-    body: "Avgift eller hyra, förfallodatum och betalningshistorik. Förberett för betalningsintegrationer.",
+    title: "Enklare kommunikation",
+    body: "Nå alla boende, ett hus eller en enskild lägenhet med ett meddelande – i appen och via e-post eller sms.",
   },
   {
     icon: FolderOpen,
-    title: "Dokument",
-    body: "Stadgar, avtal, planritningar och protokoll – rätt dokument till rätt boende.",
+    title: "Information som boende hittar själva",
+    body: "Stadgar, trivselregler, protokoll och nyheter finns samlade, så att enkla frågor besvaras utan att styrelsen behöver svara.",
+  },
+  {
+    icon: Wallet,
+    title: "Avgifter och ekonomi",
+    body: "Avier med OCR, förfallodatum och betalningshistorik. Boende ser sin avgift, styrelsen ser vad som är betalt.",
   },
   {
     icon: BarChart3,
-    title: "Statistik",
-    body: "Lösningstider, vanligaste felkategorier, beläggning och betalningsgrad i tydliga nyckeltal.",
+    title: "Överblick för styrelsen",
+    body: "Se vad som väntar, hur lång tid ärenden tar och vilka fel som återkommer – utan att sammanställa något för hand.",
   },
+];
+
+/** Jämförelsen mellan hur det ofta ser ut idag och med plattformen. */
+const before = [
+  "Felanmälningar kommer via mejl, sms och samtal till olika personer",
+  "Bokningslistor på papper som försvinner eller skrivs över",
+  "Samma frågor om tvättider, avgifter och regler kommer om och om igen",
+  "Information på anslagstavlan når inte alla",
+  "Kunskapen försvinner när ledamöter lämnar styrelsen",
+];
+
+const after = [
+  "Alla ärenden samlas i en lista med status och ansvarig",
+  "Boende bokar själva, enligt föreningens regler",
+  "Svaren finns i appen – boende hittar dem utan att kontakta styrelsen",
+  "Meddelanden når rätt boende i appen, via e-post eller sms",
+  "Historik och dokument finns kvar när styrelsen byts ut",
 ];
 
 /** Kvarteret med svävande kort ur appen. */
@@ -171,19 +190,33 @@ function Landing() {
               <br />
               På ett ställe.
             </h1>
-            <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-              En modern boendeplattform för bostadsrättsföreningar, fastighetsägare och hyresgäster.
+            <p className="mt-6 text-xl font-medium sm:text-2xl">
+              Mindre administration. Färre mejltrådar. Bättre koll.
+            </p>
+            <p className="mt-4 max-w-xl text-lg text-muted-foreground">
+              Felanmälningar, bokningar, information och kommunikation med de boende samlas i ett
+              system. Styrelsen får överblick, och de boende hittar svaren själva i stället för att
+              höra av sig om enkla frågor.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button size="lg" asChild>
-                <Link to="/boka-demo">Boka demo</Link>
+                <Link to="/boka-demo">Boka en demo</Link>
               </Button>
               <Button size="lg" variant="secondary" asChild>
-                <Link to="/auth" hash="demo">
-                  Se demomiljön
-                </Link>
+                <a href="#sa-fungerar-det">Se hur det fungerar</a>
               </Button>
             </div>
+            <p className="mt-4 text-sm text-muted-foreground">
+              Eller{" "}
+              <Link
+                to="/auth"
+                hash="demo"
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                prova demomiljön direkt
+              </Link>{" "}
+              – ingen registrering behövs.
+            </p>
             <dl className="mt-12 grid max-w-lg grid-cols-3 gap-6">
               {statRows(stats).map(([value, label]) => (
                 <div key={label}>
@@ -194,6 +227,45 @@ function Landing() {
             </dl>
           </div>
           <HeroVisual />
+        </div>
+      </section>
+
+      <section id="sa-fungerar-det" className="scroll-mt-28 mx-auto max-w-6xl px-5 pb-20">
+        <div className="max-w-2xl">
+          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            Från mejltrådar och lappar till ett gemensamt system
+          </h2>
+          <p className="mt-4 text-muted-foreground">
+            I många föreningar ligger felanmälningarna i någons inkorg, bokningslistan hänger i
+            tvättstugan och informationen finns i ett gammalt nyhetsbrev. Boendeplattformen samlar
+            allt, så att både styrelse och boende vet var de ska leta.
+          </p>
+        </div>
+        <div className="mt-10 grid gap-5 md:grid-cols-2">
+          <div className="card-surface p-6">
+            <h3 className="text-base font-semibold text-muted-foreground">
+              Så ser det ofta ut idag
+            </h3>
+            <ul className="mt-4 space-y-3 text-sm">
+              {before.map((t) => (
+                <li key={t} className="flex items-start gap-3 text-muted-foreground">
+                  <X className="mt-0.5 size-4 shrink-0" />
+                  {t}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="card-surface p-6">
+            <h3 className="text-base font-semibold">Med Boendeplattformen</h3>
+            <ul className="mt-4 space-y-3 text-sm">
+              {after.map((t) => (
+                <li key={t} className="flex items-start gap-3">
+                  <Check className="mt-0.5 size-4 shrink-0 text-success" />
+                  {t}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -221,8 +293,12 @@ function Landing() {
 
       <section className="mx-auto max-w-6xl px-5 py-20">
         <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          Allt förvaltningen behöver – utan gammal känsla
+          Det här får föreningen
         </h2>
+        <p className="mt-4 max-w-2xl text-muted-foreground">
+          Mindre tid på administration och färre frågor till styrelsen – för att allt finns på ett
+          ställe, för både styrelse och boende.
+        </p>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f) => (
             <div key={f.title} className="card-surface p-6">
@@ -276,10 +352,10 @@ function Landing() {
               ”Vad behöver jag veta idag?”
             </h2>
             <p className="mt-4 max-w-lg text-muted-foreground">
-              Plattformen sammanställer läget i fastigheten varje dag: ärenden som väntat för länge,
-              obetalda avgifter, projekt utan uppdatering och möten som närmar sig. Byggd så att mer
-              AI-stöd kan kopplas in – sammanfattningar, utkast till information och analys av
-              återkommande problem.
+              Assistenten sammanställer läget i fastigheten varje dag, så att styrelsen snabbt ser
+              vad som behöver göras: ärenden som väntat för länge, obetalda avgifter, projekt utan
+              uppdatering och möten som närmar sig. Byggd så att mer AI-stöd kan kopplas in –
+              sammanfattningar, utkast till information och analys av återkommande problem.
             </p>
           </div>
           <div className="card-surface p-6">
@@ -309,15 +385,20 @@ function Landing() {
       <section className="relative overflow-hidden">
         <div className="mx-auto max-w-6xl px-5 pt-24 pb-10 text-center">
           <h2 className="font-display text-4xl leading-tight sm:text-5xl">
-            Min digitala plats för allt som rör mitt boende.
+            Mindre tid på administration. Mer tid för föreningen.
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-muted-foreground">
-            Boka en demo och se hur föreningen eller fastighetsbolaget kommer igång på en
-            eftermiddag.
+            Boka en demo så går vi igenom hur plattformen fungerar för just er förening eller ert
+            fastighetsbolag – och hur ni kommer igång på en eftermiddag.
           </p>
-          <div className="mt-8 flex justify-center gap-3">
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button size="lg" asChild>
-              <Link to="/boka-demo">Boka demo</Link>
+              <Link to="/boka-demo">Boka en demo</Link>
+            </Button>
+            <Button size="lg" variant="secondary" asChild>
+              <Link to="/auth" hash="demo">
+                Prova demomiljön
+              </Link>
             </Button>
           </div>
         </div>
