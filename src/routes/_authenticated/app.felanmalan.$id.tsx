@@ -130,7 +130,7 @@ function RequestPage() {
                   disabled={!body.trim() || mutation.isPending}
                   onClick={() => mutation.mutate(undefined)}
                 >
-                  Skicka
+                  Skicka meddelande
                 </Button>
                 <Button
                   variant="outline"

@@ -1,15 +1,11 @@
-import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useOrgProfile } from "@/lib/use-org-profile";
 import { OpenFileButton } from "@/components/open-file-button";
-import { toast } from "sonner";
 
-import { getMyHome, updateMyContact } from "@/lib/app.functions";
+import { getMyHome } from "@/lib/app.functions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { DataRow, EmptyState, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
 import { InspectionStatusPill, StatusPill } from "@/components/status-badge";
 import { dateLong, docTypeLabel, inspectionKindLabels, kr } from "@/lib/format";
@@ -204,6 +200,7 @@ function InspectionsPanel({ inspections }: { inspections: Inspection[] }) {
   );
 }
 
+/** Visar kontaktuppgifterna; de ändras på ett enda ställe, Min profil. */
 function ContactPanel({
   fullName,
   email,
@@ -213,70 +210,21 @@ function ContactPanel({
   email: string;
   phone: string;
 }) {
-  const updateFn = useServerFn(updateMyContact);
-  const qc = useQueryClient();
-  const [draft, setDraft] = useState<{ fullName: string; phone: string } | null>(null);
-
-  const save = useMutation({
-    mutationFn: (d: { fullName: string; phone: string }) => updateFn({ data: d }),
-    onSuccess: () => {
-      setDraft(null);
-      toast.success("Dina uppgifter är sparade");
-      void qc.invalidateQueries({ queryKey: ["my-home"] });
-      void qc.invalidateQueries({ queryKey: ["me"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   return (
     <Panel
       title="Mina kontaktuppgifter"
-      description="Används av förvaltningen och entreprenörer vid ärenden"
+      description="Används av föreningen och hantverkare vid ärenden"
       action={
-        draft ? null : (
-          <Button size="sm" variant="outline" onClick={() => setDraft({ fullName, phone })}>
-            Ändra
-          </Button>
-        )
+        <Button variant="outline" asChild>
+          <Link to="/app/profil">Ändra kontaktuppgifter</Link>
+        </Button>
       }
     >
-      {draft ? (
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="contact-name">Namn</Label>
-            <Input
-              id="contact-name"
-              value={draft.fullName}
-              onChange={(e) => setDraft({ ...draft, fullName: e.target.value })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="contact-phone">Telefon</Label>
-            <Input
-              id="contact-phone"
-              value={draft.phone}
-              onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button
-              disabled={!draft.fullName.trim() || save.isPending}
-              onClick={() => save.mutate(draft)}
-            >
-              {save.isPending ? "Sparar…" : "Spara"}
-            </Button>
-            <Button variant="ghost" onClick={() => setDraft(null)}>
-              Avbryt
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <dl>
-          <DataRow label="Namn" value={fullName || "–"} />
-          <DataRow label="E-post" value={email || "–"} />
-          <DataRow label="Telefon" value={phone || "–"} />
-        </dl>
-      )}
+      <dl>
+        <DataRow label="Namn" value={fullName || "–"} />
+        <DataRow label="E-post" value={email || "–"} />
+        <DataRow label="Telefon" value={phone || "–"} />
+      </dl>
     </Panel>
   );
 }

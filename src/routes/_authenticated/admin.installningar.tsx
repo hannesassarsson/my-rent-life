@@ -122,7 +122,7 @@ function AdminSettings() {
                     disabled={!org.name.trim() || saveOrg.isPending}
                     onClick={() => saveOrg.mutate(org)}
                   >
-                    {saveOrg.isPending ? "Sparar…" : "Spara"}
+                    {saveOrg.isPending ? "Sparar…" : "Spara ändringar"}
                   </Button>
                   <Button variant="ghost" onClick={() => setOrg(null)}>
                     Avbryt
@@ -146,7 +146,7 @@ function AdminSettings() {
 
           <Panel
             title="Användare och roller"
-            description={`${data.members.length} konton i organisationen. Nya konton skapas i Supabase och får sin roll här.`}
+            description={`${data.members.length} konton i organisationen. Här väljer du vilken roll varje person har.`}
             padded={false}
           >
             {data.members.length === 0 ? (

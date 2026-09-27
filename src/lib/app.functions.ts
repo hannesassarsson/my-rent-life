@@ -152,6 +152,26 @@ export const getMe = createServerFn({ method: "GET" })
 
 /* ------------------------------- BOENDE ------------------------------- */
 
+/**
+ * "Mina" felanmälningar: de man själv anmält och de som gäller ens lägenhet.
+ * RLS släpper igenom hela föreningens ärenden för personal, så filtret behövs
+ * för att styrelseledamöter som bor i föreningen ska se sina egna.
+ */
+function myRequestsFilter(userId: string, unitId: string | null) {
+  return unitId ? `reported_by.eq.${userId},unit_id.eq.${unitId}` : `reported_by.eq.${userId}`;
+}
+
+async function myActiveUnitId(supabase: Db, userId: string) {
+  const { data } = await supabase
+    .from("residencies")
+    .select("unit_id")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  return data?.unit_id ?? null;
+}
+
 export const getResidentDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -171,11 +191,13 @@ export const getResidentDashboard = createServerFn({ method: "GET" })
       supabase
         .from("maintenance_requests")
         .select("id, ticket_number, title, status, priority, is_urgent, updated_at, category")
+        .or(myRequestsFilter(context.userId, unitId))
         .order("created_at", { ascending: false })
         .limit(4),
       supabase
         .from("bookings")
         .select("id, starts_at, ends_at, resources(name, icon, location)")
+        .eq("user_id", context.userId)
         .gte("ends_at", new Date().toISOString())
         .order("starts_at", { ascending: true })
         .limit(3),
@@ -233,11 +255,13 @@ export const getMyRequests = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
+    const unitId = await myActiveUnitId(supabase, context.userId);
     const { data } = await supabase
       .from("maintenance_requests")
       .select(
         "id, ticket_number, title, category, status, priority, is_urgent, room, created_at, updated_at, assignee_name",
       )
+      .or(myRequestsFilter(context.userId, unitId))
       .order("created_at", { ascending: false });
     return data ?? [];
   });

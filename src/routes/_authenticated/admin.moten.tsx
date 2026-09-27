@@ -316,7 +316,7 @@ function AdminMeetingsPage() {
                   disabled={!draft.title.trim() || !draft.startsAt || save.isPending}
                   onClick={() => save.mutate(draft)}
                 >
-                  {save.isPending ? "Sparar…" : "Spara"}
+                  {save.isPending ? "Sparar…" : "Spara mötet"}
                 </Button>
               </div>
             </div>

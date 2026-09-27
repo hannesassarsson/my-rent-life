@@ -14,6 +14,12 @@
   --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Instrument Serif", ui-serif, Georgia, serif;
 
+  /* Något större små textstorlekar för läsbarhetens skull (standard 12/14 px). */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.55;
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -103,7 +109,7 @@
   --secondary-foreground: oklch(0.3 0.024 256);
 
   --muted: oklch(0.965 0.005 252);
-  --muted-foreground: oklch(0.53 0.017 256);
+  --muted-foreground: oklch(0.46 0.018 256);
 
   --accent: oklch(0.951 0.021 252);
   --accent-foreground: oklch(0.36 0.09 251);
@@ -111,8 +117,8 @@
   --destructive: oklch(0.55 0.19 24);
   --destructive-foreground: oklch(0.99 0.002 250);
 
-  --border: oklch(0.924 0.005 252);
-  --input: oklch(0.917 0.006 252);
+  --border: oklch(0.9 0.006 252);
+  --input: oklch(0.84 0.01 252);
   --ring: oklch(0.43 0.117 251);
 
   --success: oklch(0.52 0.115 152);

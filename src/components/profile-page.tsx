@@ -9,6 +9,7 @@ import {
   saveMyNotificationSettings,
   sendTestNotification,
 } from "@/lib/notify.functions";
+import { updateMyContact } from "@/lib/app.functions";
 import { DataRow, EmptyState, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
 import { DeliveryStatusPill, deliveryStatusLabels } from "@/components/status-badge";
 import { BankIdPanel } from "@/components/bankid";
@@ -24,6 +25,7 @@ export function ProfilePage() {
   const getFn = useServerFn(getMyNotificationSettings);
   const saveFn = useServerFn(saveMyNotificationSettings);
   const testFn = useServerFn(sendTestNotification);
+  const contactFn = useServerFn(updateMyContact);
   const qc = useQueryClient();
   const { data, isPending } = useQuery({
     queryKey: ["notification-settings"],
@@ -33,6 +35,7 @@ export function ProfilePage() {
     emailEnabled: boolean;
     smsEnabled: boolean;
     phone: string;
+    fullName: string;
   } | null>(null);
 
   useEffect(() => {
@@ -41,6 +44,7 @@ export function ProfilePage() {
         emailEnabled: data.emailEnabled,
         smsEnabled: data.smsEnabled,
         phone: data.phone ?? "",
+        fullName: data.fullName ?? "",
       });
     }
   }, [data, form]);
@@ -49,9 +53,20 @@ export function ProfilePage() {
     mutationFn: (d: { emailEnabled: boolean; smsEnabled: boolean; phone: string }) =>
       saveFn({ data: d }),
     onSuccess: (res) => {
-      toast.success("Dina val är sparade");
+      toast.success("Dina val för aviseringar är sparade");
       setForm((f) => (f ? { ...f, phone: res.phone ?? "" } : f));
       void qc.invalidateQueries({ queryKey: ["notification-settings"] });
+      void qc.invalidateQueries({ queryKey: ["me"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const saveContact = useMutation({
+    mutationFn: (d: { fullName: string; phone: string }) => contactFn({ data: d }),
+    onSuccess: () => {
+      toast.success("Dina kontaktuppgifter är sparade");
+      void qc.invalidateQueries({ queryKey: ["notification-settings"] });
+      void qc.invalidateQueries({ queryKey: ["my-home"] });
       void qc.invalidateQueries({ queryKey: ["me"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -63,7 +78,7 @@ export function ProfilePage() {
       void qc.invalidateQueries({ queryKey: ["notification-settings"] });
       void qc.invalidateQueries({ queryKey: ["notifications"] });
       if (res.deliveries.length === 0) {
-        toast.info("Testnotisen finns under klockan. Du har inga utskick påslagna.");
+        toast.info("Testaviseringen finns under klockan. Du har varken e-post eller sms påslaget.");
         return;
       }
       const summary = res.deliveries
@@ -82,34 +97,59 @@ export function ProfilePage() {
   const dirty =
     !!data &&
     !!form &&
-    (form.emailEnabled !== data.emailEnabled ||
-      form.smsEnabled !== data.smsEnabled ||
-      form.phone !== (data.phone ?? ""));
+    (form.emailEnabled !== data.emailEnabled || form.smsEnabled !== data.smsEnabled);
+  const contactDirty =
+    !!data &&
+    !!form &&
+    (form.fullName.trim() !== (data.fullName ?? "") || form.phone !== (data.phone ?? ""));
 
   return (
     <div>
-      <PageHeader title="Min profil" subtitle="Inloggning, kontaktuppgifter och utskick" />
+      <PageHeader
+        title="Min profil"
+        subtitle="Dina kontaktuppgifter, inloggning och hur du vill få besked"
+      />
       {isPending || !data || !form ? (
         <LoadingBlock rows={4} />
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="space-y-6">
-            <Panel title="Kontaktuppgifter">
+            <Panel
+              title="Kontaktuppgifter"
+              description="Föreningen och hantverkare använder dem när de behöver nå dig."
+            >
               <dl>
-                <DataRow label="Namn" value={data.fullName ?? "—"} />
                 <DataRow label="E-post" value={data.email ?? "—"} />
               </dl>
+              <div className="mt-4 space-y-2">
+                <Label htmlFor="full-name">Namn</Label>
+                <Input
+                  id="full-name"
+                  autoComplete="name"
+                  value={form.fullName}
+                  onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                />
+              </div>
               <div className="mt-4 space-y-2">
                 <Label htmlFor="phone">Mobilnummer</Label>
                 <Input
                   id="phone"
                   inputMode="tel"
                   autoComplete="tel"
-                  placeholder="070-123 45 67"
+                  placeholder="Till exempel 070-123 45 67"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 />
               </div>
+              <Button
+                className="mt-5"
+                disabled={!contactDirty || !form.fullName.trim() || saveContact.isPending}
+                onClick={() =>
+                  saveContact.mutate({ fullName: form.fullName.trim(), phone: form.phone.trim() })
+                }
+              >
+                {saveContact.isPending ? "Sparar…" : "Spara kontaktuppgifter"}
+              </Button>
             </Panel>
 
             <BankIdPanel />
@@ -117,8 +157,8 @@ export function ProfilePage() {
 
           <div className="space-y-6">
             <Panel
-              title="Utskick"
-              description="Det du ser under klockan i appen kan också komma som e-post och sms."
+              title="Aviseringar"
+              description="Välj om du också vill få besked på e-post eller sms. Allt syns alltid under klockan i appen."
             >
               <div className="space-y-5">
                 <ChannelSwitch
@@ -144,17 +184,18 @@ export function ProfilePage() {
                 />
                 {data.isDemo ? (
                   <p className="rounded-lg bg-info-soft px-3 py-2 text-xs text-info">
-                    Demoföreningen skickar inga riktiga mejl eller sms. Utskicken syns nedan men går
-                    inte iväg.
+                    Demoföreningen skickar inga riktiga mejl eller sms. Aviseringarna syns nedan men
+                    går inte iväg.
                   </p>
                 ) : !data.channels.email ? (
                   <p className="rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning-foreground">
-                    Utskick på e-post är inte aktiverade på servern ännu.
+                    E-post kan inte skickas ännu. Kontakta föreningen om du vill ha besked på
+                    e-post.
                   </p>
                 ) : null}
                 <div className="flex flex-wrap gap-2">
                   <Button disabled={!dirty || save.isPending} onClick={() => save.mutate(form)}>
-                    {save.isPending ? "Sparar…" : "Spara"}
+                    {save.isPending ? "Sparar…" : "Spara val för aviseringar"}
                   </Button>
                   <Button
                     variant="outline"
@@ -162,16 +203,16 @@ export function ProfilePage() {
                     onClick={() => test.mutate()}
                   >
                     <Send className="size-4" />
-                    {test.isPending ? "Skickar…" : "Skicka ett test"}
+                    {test.isPending ? "Skickar…" : "Skicka en testavisering"}
                   </Button>
                 </div>
               </div>
             </Panel>
 
-            <Panel title="Senaste utskick till dig" padded={false}>
+            <Panel title="Senaste aviseringar till dig" padded={false}>
               {data.recent.length === 0 ? (
                 <div className="p-5">
-                  <EmptyState title="Inga utskick ännu" />
+                  <EmptyState title="Du har inte fått några aviseringar ännu" />
                 </div>
               ) : (
                 <ul className="divide-y divide-border">
@@ -225,7 +266,7 @@ function ChannelSwitch({
         <Label htmlFor={`channel-${id}`} className="text-sm font-medium">
           {label}
         </Label>
-        <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
       </div>
       <Switch
         id={`channel-${id}`}

@@ -175,7 +175,7 @@ export function ResidentActions({ residency }: { residency: Residency }) {
                 disabled={!edit.residentName.trim() || save.isPending}
                 onClick={() => save.mutate(edit)}
               >
-                {save.isPending ? "Sparar…" : "Spara"}
+                {save.isPending ? "Sparar…" : "Spara ändringar"}
               </Button>
             </div>
           ) : null}

@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getAnnouncements } from "@/lib/app.functions";
 import { EmptyState, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
 import { StatusPill } from "@/components/status-badge";
-import { dateLong } from "@/lib/format";
+import { announcementCategory, dateLong } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/app/information")({
@@ -36,7 +36,7 @@ function InformationPage() {
 
   return (
     <div>
-      <PageHeader title="Information" subtitle="Nyheter och driftinformation från förvaltningen" />
+      <PageHeader title="Nyheter" subtitle="Nyheter och viktig information från föreningen" />
 
       <div className="mb-5 flex flex-wrap gap-2">
         {categories.map((c) => (
@@ -44,12 +44,13 @@ function InformationPage() {
             key={c}
             type="button"
             onClick={() => setFilter(c)}
+            aria-pressed={filter === c}
             className={cn(
-              "rounded-full border border-border px-3.5 py-1.5 text-xs font-medium capitalize transition hover:border-primary",
+              "min-h-10 rounded-full border border-border px-4 py-2 text-sm font-medium transition hover:border-primary",
               filter === c && "border-primary bg-accent",
             )}
           >
-            {c}
+            {c === "alla" ? "Alla" : announcementCategory(c)}
           </button>
         ))}
       </div>
@@ -57,7 +58,10 @@ function InformationPage() {
       {isPending ? (
         <LoadingBlock rows={4} />
       ) : list.length === 0 ? (
-        <EmptyState title="Ingen information" description="Det finns inget publicerat just nu." />
+        <EmptyState
+          title="Inga nyheter just nu"
+          description="När föreningen publicerar något visas det här, och du får en notis."
+        />
       ) : (
         <div className="space-y-5">
           {[...pinned, ...rest].map((a) => (
@@ -66,13 +70,15 @@ function InformationPage() {
                 <div>
                   <h2 className="text-base font-semibold">{a.title}</h2>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {a.category} · {dateLong(a.published_at)}
+                    {announcementCategory(a.category)} · {dateLong(a.published_at)}
                     {a.properties?.name ? ` · ${a.properties.name}` : ""}
                   </p>
                 </div>
                 {a.is_pinned ? <StatusPill tone="info">Viktigt</StatusPill> : null}
               </div>
-              <p className="mt-3 text-sm whitespace-pre-line text-muted-foreground">{a.body}</p>
+              <p className="mt-3 text-[0.9375rem] leading-relaxed whitespace-pre-line text-foreground/85">
+                {a.body}
+              </p>
             </Panel>
           ))}
         </div>

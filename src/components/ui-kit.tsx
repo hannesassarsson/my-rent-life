@@ -29,8 +29,8 @@ export function Panel({
   className,
   padded = true,
 }: {
-  title?: string;
-  description?: string;
+  title?: string | undefined;
+  description?: string | undefined;
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
@@ -85,24 +85,37 @@ export function Kpi({
 export function DataRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-6 border-b border-border/70 py-3 last:border-0">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="text-right text-sm font-medium">{value}</dd>
+      <dt className="shrink-0 text-sm text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right text-sm font-medium break-words [overflow-wrap:anywhere]">
+        {value}
+      </dd>
     </div>
   );
 }
 
-export function EmptyState({ title, description }: { title: string; description?: string }) {
+/** Tomt läge som säger vad som gäller och, när det går, vad man kan göra. */
+export function EmptyState({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description?: string | undefined;
+  action?: React.ReactNode;
+}) {
   return (
-    <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center">
-      <p className="text-sm font-medium">{title}</p>
+    <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center">
+      <p className="text-base font-medium">{title}</p>
       {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+      {action ? <div className="mt-5 flex flex-wrap justify-center gap-2">{action}</div> : null}
     </div>
   );
 }
 
 export function LoadingBlock({ rows = 3 }: { rows?: number }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" role="status" aria-live="polite">
+      <p className="text-sm text-muted-foreground">Hämtar…</p>
       {Array.from({ length: rows }).map((_, i) => (
         <Skeleton key={i} className="h-16 w-full rounded-xl" />
       ))}

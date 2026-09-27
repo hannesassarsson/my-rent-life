@@ -130,7 +130,7 @@ function MessagesPage() {
             placeholder="Skriv ett meddelande till förvaltningen…"
           />
           <Button disabled={!body.trim() || mutation.isPending} onClick={() => mutation.mutate()}>
-            {mutation.isPending ? "Skickar…" : "Skicka"}
+            {mutation.isPending ? "Skickar…" : "Skicka meddelande"}
           </Button>
         </div>
       </Panel>

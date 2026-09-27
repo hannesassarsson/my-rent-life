@@ -12,7 +12,7 @@ import {
 } from "@/lib/app.functions";
 import { PageHeader, Panel, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { StatusPill } from "@/components/status-badge";
-import { dateLong } from "@/lib/format";
+import { announcementCategory, dateLong } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -103,8 +103,8 @@ function AdminCommunication() {
   return (
     <div>
       <PageHeader
-        title="Kommunikation"
-        subtitle="Information till boende – hela föreningen, en fastighet eller ett hus"
+        title="Nyheter till boende"
+        subtitle="Skriv nyheter och viktig information – till alla, en fastighet eller ett hus"
         action={
           <Dialog
             open={open}
@@ -114,11 +114,11 @@ function AdminCommunication() {
             }}
           >
             <DialogTrigger asChild>
-              <Button>Nytt inlägg</Button>
+              <Button>Skriv en nyhet</Button>
             </DialogTrigger>
             <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{draft.id ? "Redigera inlägg" : "Nytt inlägg"}</DialogTitle>
+                <DialogTitle>{draft.id ? "Ändra nyheten" : "Skriv en nyhet"}</DialogTitle>
               </DialogHeader>
               <div className="space-y-3">
                 <div>
@@ -258,7 +258,7 @@ function AdminCommunication() {
                     <p className="text-sm font-medium">{a.title}</p>
                     <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{a.body}</p>
                     <p className="mt-1.5 text-xs text-muted-foreground">
-                      {categories[a.category as string] ?? a.category} ·{" "}
+                      {categories[a.category as string] ?? announcementCategory(a.category)} ·{" "}
                       {a.audience_scope === "organization"
                         ? "Alla boende"
                         : a.buildings?.name

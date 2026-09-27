@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -50,6 +50,10 @@ function MyRequests() {
   const { data, isPending } = useQuery({ queryKey: ["my-requests"], queryFn: () => fn() });
 
   const [open, setOpen] = useState(false);
+  // Länkar som "Gör en felanmälan" på startsidan öppnar formuläret direkt.
+  useEffect(() => {
+    if (window.location.hash === "#ny") setOpen(true);
+  }, []);
   const [step, setStep] = useState(1);
   const [category, setCategory] = useState("");
   const [title, setTitle] = useState("");
@@ -81,7 +85,9 @@ function MyRequests() {
       return created;
     },
     onSuccess: (created) => {
-      toast.success(`Felanmälan skickad – ärende #${created.ticket_number}`);
+      toast.success("Din felanmälan är skickad", {
+        description: `Ärendenummer ${created.ticket_number}. Du får en notis när något händer i ärendet.`,
+      });
       void qc.invalidateQueries({ queryKey: ["my-requests"] });
       void qc.invalidateQueries({ queryKey: ["resident-dashboard"] });
       setOpen(false);
@@ -94,22 +100,33 @@ function MyRequests() {
     <div>
       <PageHeader
         title="Felanmälan"
-        subtitle="Anmäl fel i din bostad eller i gemensamma utrymmen"
+        subtitle="Anmäl något som är trasigt i din lägenhet eller i huset"
         action={
           <Dialog
             open={open}
             onOpenChange={(v) => {
               setOpen(v);
-              if (!v) reset();
+              if (!v) {
+                reset();
+                if (window.location.hash === "#ny")
+                  history.replaceState(null, "", location.pathname);
+              }
             }}
           >
             <DialogTrigger asChild>
-              <Button>Ny felanmälan</Button>
+              <Button size="lg">Gör en felanmälan</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-lg">
               <DialogHeader>
-                <DialogTitle>Ny felanmälan</DialogTitle>
-                <DialogDescription>Steg {step} av 3</DialogDescription>
+                <DialogTitle>Gör en felanmälan</DialogTitle>
+                <DialogDescription>
+                  Steg {step} av 3 –{" "}
+                  {step === 1
+                    ? "vad gäller det?"
+                    : step === 2
+                      ? "beskriv felet"
+                      : "kontrollera och skicka"}
+                </DialogDescription>
               </DialogHeader>
 
               {step === 1 ? (
@@ -123,12 +140,12 @@ function MyRequests() {
                         setStep(2);
                       }}
                       className={cn(
-                        "rounded-xl border border-border p-4 text-center transition hover:border-primary hover:bg-accent",
+                        "min-h-20 rounded-xl border border-border p-3 text-center transition hover:border-primary hover:bg-accent",
                         category === c.value && "border-primary bg-accent",
                       )}
                     >
                       <span className="text-xl">{c.icon}</span>
-                      <span className="mt-1.5 block text-xs font-medium">{c.value}</span>
+                      <span className="mt-1.5 block text-sm font-medium">{c.value}</span>
                     </button>
                   ))}
                 </div>
@@ -137,7 +154,7 @@ function MyRequests() {
               {step === 2 ? (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="title">Vad gäller det?</Label>
+                    <Label htmlFor="title">Rubrik – vad är trasigt?</Label>
                     <Input
                       id="title"
                       value={title}
@@ -146,7 +163,7 @@ function MyRequests() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="description">Beskriv felet</Label>
+                    <Label htmlFor="description">Beskriv felet (valfritt)</Label>
                     <Textarea
                       id="description"
                       rows={4}
@@ -156,15 +173,16 @@ function MyRequests() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Var i bostaden?</Label>
+                    <Label>Var i lägenheten? (valfritt)</Label>
                     <div className="flex flex-wrap gap-2">
                       {rooms.map((r) => (
                         <button
                           key={r}
                           type="button"
-                          onClick={() => setRoom(r)}
+                          onClick={() => setRoom(room === r ? "" : r)}
+                          aria-pressed={room === r}
                           className={cn(
-                            "rounded-full border border-border px-3 py-1.5 text-xs font-medium transition hover:border-primary",
+                            "min-h-10 rounded-full border border-border px-4 py-2 text-sm font-medium transition hover:border-primary",
                             room === r && "border-primary bg-accent",
                           )}
                         >
@@ -174,7 +192,7 @@ function MyRequests() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="images">Bilder (valfritt)</Label>
+                    <Label htmlFor="images">Bifoga bilder (valfritt)</Label>
                     <Input
                       id="images"
                       type="file"
@@ -218,12 +236,16 @@ function MyRequests() {
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-border p-4">
                     <div>
-                      <p className="text-sm font-medium">Akut ärende</p>
-                      <p className="text-xs text-muted-foreground">
-                        Vattenläckage, ingen värme eller något som riskerar skada.
+                      <p className="text-sm font-medium">Är det akut?</p>
+                      <p className="text-sm text-muted-foreground">
+                        Till exempel vattenläcka, ingen värme eller något som kan orsaka skada.
                       </p>
                     </div>
-                    <Switch checked={isUrgent} onCheckedChange={setIsUrgent} />
+                    <Switch
+                      checked={isUrgent}
+                      onCheckedChange={setIsUrgent}
+                      aria-label="Markera som akut"
+                    />
                   </div>
                 </div>
               ) : null}
@@ -236,7 +258,7 @@ function MyRequests() {
                 ) : null}
                 {step === 2 ? (
                   <Button disabled={!title.trim()} onClick={() => setStep(3)}>
-                    Fortsätt
+                    Nästa: kontrollera
                   </Button>
                 ) : null}
                 {step === 3 ? (
@@ -254,7 +276,10 @@ function MyRequests() {
         {isPending ? (
           <LoadingBlock />
         ) : !data || data.length === 0 ? (
-          <EmptyState title="Inga felanmälningar" description="Allt lugnt i din bostad." />
+          <EmptyState
+            title="Du har inga felanmälningar"
+            description="När du anmäler ett fel kan du följa ärendet här."
+          />
         ) : (
           <ul className="space-y-3">
             {data.map((r) => (
@@ -266,9 +291,9 @@ function MyRequests() {
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium">{r.title}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Ärende #{r.ticket_number} · {r.category}
+                      <p className="text-base font-medium">{r.title}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Ärende {r.ticket_number} · {r.category}
                         {r.room ? ` · ${r.room}` : ""} · uppdaterad {dateTime(r.updated_at)}
                       </p>
                     </div>

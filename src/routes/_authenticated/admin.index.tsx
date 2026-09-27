@@ -62,7 +62,10 @@ function AdminOverview() {
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <Panel title="Vad behöver jag veta idag?" description="AI-assistent">
+        <Panel
+          title="Vad behöver jag veta idag?"
+          description="Sammanställs automatiskt varje dag av assistenten"
+        >
           <ul className="space-y-3 text-sm">
             {data.requests.stale > 0 ? (
               <li className="flex items-start gap-3">
@@ -126,7 +129,10 @@ function AdminOverview() {
           )}
         </Panel>
 
-        <Panel title="Beläggning bokningsresurser">
+        <Panel
+          title="Hur mycket lokalerna bokas"
+          description="Andel bokade tider de senaste 30 dagarna"
+        >
           <ul className="space-y-3">
             {data.bookings.occupancy.map((o) => (
               <li key={o.id}>

@@ -318,7 +318,7 @@ function UnitDialog({ unit, onClose }: { unit: Unit | null; onClose: () => void 
               </label>
             </div>
             <Button className="w-full" disabled={save.isPending} onClick={() => save.mutate(draft)}>
-              {save.isPending ? "Sparar…" : "Spara"}
+              {save.isPending ? "Sparar…" : "Spara lägenheten"}
             </Button>
           </div>
         ) : null}

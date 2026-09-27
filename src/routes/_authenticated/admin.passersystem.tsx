@@ -474,7 +474,7 @@ function AccessAdminPage() {
                   disabled={!doorDraft.name.trim() || saveDoorM.isPending}
                   onClick={() => saveDoorM.mutate(doorDraft)}
                 >
-                  {saveDoorM.isPending ? "Sparar…" : "Spara"}
+                  {saveDoorM.isPending ? "Sparar…" : "Spara dörren"}
                 </Button>
               </div>
             </div>

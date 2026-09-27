@@ -2,7 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { Menu, LogOut, ArrowLeftRight, Lock, UserCog } from "lucide-react";
+import { Menu, LogOut, ArrowLeftRight, Lock, UserRound, ChevronDown } from "lucide-react";
 
 import { getMe } from "@/lib/app.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +30,10 @@ export type NavItem = {
   feature?: Feature;
   /** Satt av skalet: rollen har behörighet men planen saknar funktionen. */
   locked?: boolean;
+  /** Rubrik som menyvalet grupperas under. */
+  group?: string;
+  /** Mer sällan använda verktyg; visas hopfällda under "Fler verktyg". */
+  advanced?: boolean;
 };
 
 export type Area = "resident" | "admin" | "contractor";
@@ -60,33 +64,142 @@ export function meQueryOptions(fn: () => Promise<unknown>) {
   return { queryKey: ["me"], queryFn: fn };
 }
 
+const navLinkClass = (active: boolean) =>
+  cn(
+    "flex min-h-11 items-center gap-3 rounded-lg px-3 py-1.5 text-[0.9375rem] transition-colors lg:min-h-10",
+    active
+      ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
+      : "text-foreground/80 hover:bg-sidebar-accent/60 hover:text-foreground",
+  );
+
+function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: (() => void) | undefined }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const active = isActive(pathname, item.to);
+  const Icon = item.icon;
+  return (
+    <Link
+      to={item.to}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={navLinkClass(active)}
+    >
+      <Icon className="size-5 shrink-0" />
+      <span className="flex-1">{item.label}</span>
+      {item.locked ? (
+        <Lock className="size-4 text-muted-foreground" aria-label="Ingår inte i planen" />
+      ) : null}
+    </Link>
+  );
+}
+
+/** Menyn i grupper med rubrik; sällan använda verktyg ligger hopfällda. */
 function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const main = items.filter((i) => !i.advanced);
+  const advanced = items.filter((i) => i.advanced);
+  const advancedActive = advanced.some((i) => isActive(pathname, i.to));
+  const [showAdvanced, setShowAdvanced] = useState(advancedActive);
+  useEffect(() => {
+    if (advancedActive) setShowAdvanced(true);
+  }, [advancedActive]);
+
+  const groups: { title: string | undefined; items: NavItem[] }[] = [];
+  for (const item of main) {
+    const last = groups[groups.length - 1];
+    if (last && last.title === item.group) last.items.push(item);
+    else groups.push({ title: item.group, items: [item] });
+  }
+
   return (
-    <nav className="space-y-0.5">
-      {items.map((item) => {
-        const active = isActive(pathname, item.to);
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.to}
-            to={item.to}
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
-              active
-                ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
-            )}
+    <nav aria-label="Huvudmeny" className="space-y-4">
+      {groups.map((g, i) => (
+        <div key={`${g.title ?? ""}-${i}`}>
+          {g.title ? (
+            <p className="mb-1.5 px-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              {g.title}
+            </p>
+          ) : null}
+          <div className="space-y-0.5">
+            {g.items.map((item) => (
+              <NavLink key={item.to} item={item} onNavigate={onNavigate} />
+            ))}
+          </div>
+        </div>
+      ))}
+      {advanced.length > 0 ? (
+        <div>
+          <button
+            type="button"
+            onClick={(e) => {
+              const button = e.currentTarget;
+              setShowAdvanced((v) => !v);
+              // Visa de utfällda valen även när menyn är längre än skärmen.
+              requestAnimationFrame(() =>
+                button.nextElementSibling?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
+              );
+            }}
+            aria-expanded={showAdvanced}
+            className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left lg:min-h-10 text-[0.9375rem] text-foreground/80 transition-colors hover:bg-sidebar-accent/60 hover:text-foreground"
           >
-            <Icon className="size-4 shrink-0" />
-            <span className="flex-1">{item.label}</span>
-            {item.locked ? (
-              <Lock className="size-3.5 text-muted-foreground" aria-label="Ingår inte i planen" />
-            ) : null}
-          </Link>
-        );
-      })}
+            <span className="flex-1 font-medium">
+              {showAdvanced ? "Färre verktyg" : `Fler verktyg (${advanced.length})`}
+            </span>
+            <ChevronDown
+              className={cn("size-5 transition-transform", showAdvanced && "rotate-180")}
+            />
+          </button>
+          {showAdvanced ? (
+            <div className="mt-0.5 space-y-0.5">
+              {advanced.map((item) => (
+                <NavLink key={item.to} item={item} onNavigate={onNavigate} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </nav>
+  );
+}
+
+/** Fast meny längst ned på mobilen med de vanligaste valen och "Meny". */
+function BottomNav({ items, onOpenMenu }: { items: NavItem[]; onOpenMenu: () => void }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  return (
+    <nav
+      aria-label="Snabbmeny"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+    >
+      <div
+        className="mx-auto grid max-w-lg"
+        style={{ gridTemplateColumns: `repeat(${items.length + 1}, minmax(0, 1fr))` }}
+      >
+        {items.map((item) => {
+          const active = isActive(pathname, item.to);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex min-h-16 flex-col items-center justify-center gap-1 px-1 text-sm font-medium",
+                active ? "text-primary" : "text-foreground/70",
+              )}
+            >
+              <Icon className="size-6" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+        <button
+          type="button"
+          onClick={onOpenMenu}
+          className="flex min-h-16 flex-col items-center justify-center gap-1 px-1 text-sm font-medium text-foreground/70"
+        >
+          <Menu className="size-6" />
+          <span>Meny</span>
+        </button>
+      </div>
     </nav>
   );
 }
@@ -94,10 +207,13 @@ function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => v
 export function AppShell({
   items,
   area,
+  mobileTabs = [],
   children,
 }: {
   items: NavItem[];
   area: Area;
+  /** Adresser som visas i mobilens fasta meny (om användaren har dem). */
+  mobileTabs?: { to: string; label: string }[];
   children: React.ReactNode;
 }) {
   const getMeFn = useServerFn(getMe);
@@ -131,6 +247,10 @@ export function AppShell({
           locked: !!item.permission && planLocked.includes(item.permission),
         }))
     : [];
+  const tabItems = mobileTabs.flatMap((t) => {
+    const item = visibleItems.find((i) => i.to === t.to && !i.locked);
+    return item ? [{ ...item, label: t.label }] : [];
+  });
   const canUseArea =
     !me ||
     (area === "admin"
@@ -173,7 +293,7 @@ export function AppShell({
   }
 
   const sidebar = (
-    <div className="flex h-full flex-col gap-6 px-4 py-5">
+    <div className="flex h-full flex-col gap-5 px-4 py-5">
       <div className="flex items-center justify-between">
         <Link to="/" className="px-1">
           <Logo />
@@ -185,6 +305,12 @@ export function AppShell({
           {AREA_LABEL[area]}
         </p>
         <p className="mt-1 truncate text-sm font-medium">{me?.organization?.name ?? "—"}</p>
+        {area !== "resident" && me && me.roles.length > 0 ? (
+          <p className="truncate text-xs text-muted-foreground">
+            {me.profile?.full_name ? `${me.profile.full_name} · ` : ""}
+            {me.roles.map((r) => ROLE_LABELS[r] ?? r).join(", ")}
+          </p>
+        ) : null}
         {area === "resident" && me?.residency?.units ? (
           <p className="truncate text-xs text-muted-foreground">
             {me.residency.units.address} · {me.residency.units.unit_number}
@@ -195,40 +321,29 @@ export function AppShell({
         <NavList items={visibleItems} onNavigate={() => setOpen(false)} />
       </div>
       <div className="space-y-1 border-t border-sidebar-border pt-4">
+        <Link
+          to={AREA_PROFILE[area]}
+          onClick={() => setOpen(false)}
+          className={navLinkClass(pathname.startsWith(AREA_PROFILE[area]))}
+        >
+          <UserRound className="size-5 shrink-0" />
+          Min profil
+        </Link>
         {otherAreas.map((a) => (
           <Link
             key={a}
             to={AREA_HOME[a]}
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground"
+            className={navLinkClass(false)}
           >
-            <ArrowLeftRight className="size-4" />
+            <ArrowLeftRight className="size-5 shrink-0" />
             Byt till {AREA_LABEL[a].toLowerCase()}
           </Link>
         ))}
-        <button
-          onClick={signOut}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground"
-        >
-          <LogOut className="size-4" />
+        <button type="button" onClick={signOut} className={cn(navLinkClass(false), "w-full")}>
+          <LogOut className="size-5 shrink-0" />
           Logga ut
         </button>
-        <Link
-          to={AREA_PROFILE[area]}
-          onClick={() => setOpen(false)}
-          className="flex items-center gap-2.5 rounded-lg px-3 py-2 transition-colors hover:bg-sidebar-accent/60"
-        >
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{me?.profile?.full_name ?? "—"}</p>
-            <p className="truncate text-xs text-muted-foreground">{me?.profile?.email}</p>
-            {me && me.roles.length > 0 ? (
-              <p className="mt-1 truncate text-xs text-muted-foreground">
-                {me.roles.map((r) => ROLE_LABELS[r] ?? r).join(", ")}
-              </p>
-            ) : null}
-          </div>
-          <UserCog className="size-4 shrink-0 text-muted-foreground" aria-label="Min profil" />
-        </Link>
       </div>
     </div>
   );
@@ -241,12 +356,13 @@ export function AppShell({
 
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border bg-surface/85 px-4 py-3 backdrop-blur lg:hidden">
         <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Meny">
-              <Menu className="size-5" />
+          <SheetTrigger asChild className={cn(tabItems.length > 0 && "hidden")}>
+            <Button variant="ghost" className="-ml-2 gap-2 px-2.5 text-base">
+              <Menu className="size-6" />
+              Meny
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[280px] bg-sidebar p-0">
+          <SheetContent side="left" className="w-[300px] overflow-y-auto bg-sidebar p-0">
             <SheetTitle className="sr-only">Meny</SheetTitle>
             {sidebar}
           </SheetContent>
@@ -255,7 +371,7 @@ export function AppShell({
         <NotificationBell />
       </header>
 
-      <main className="lg:pl-[270px]">
+      <main className={cn("lg:pl-[270px]", tabItems.length > 0 && "pb-24 lg:pb-0")}>
         <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 sm:py-10">
           {area === "admin" && me ? (
             <BillingBanner
@@ -284,6 +400,7 @@ export function AppShell({
           )}
         </div>
       </main>
+      {tabItems.length > 0 ? <BottomNav items={tabItems} onOpenMenu={() => setOpen(true)} /> : null}
     </div>
   );
 }
