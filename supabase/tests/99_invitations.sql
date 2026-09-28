@@ -116,6 +116,13 @@ select tests.expect_error($q$update public.invitations set revoked_at = null
   where token_hash = encode(sha256(convert_to('token-annan-andra-0123456789', 'UTF8')), 'hex')$q$,
   'Inbjudan kan inte ändras');
 
+-- Ett konto som tagit emot en inbjudan går att radera; länken förblir använd.
+reset role;
+delete from auth.users where id = 'ffffffff-0000-0000-0000-00000000000f';
+select tests.assert(
+  public.invitation_preview('token-annan-0123456789abcdef')->>'status' = 'used',
+  'raderat konto: inbjudan förblir använd');
+
 -- Demoföreningens inbjudningar kan visas men inte användas.
 reset role;
 insert into public.invitations (organization_id, unit_id, token_hash, created_by)
