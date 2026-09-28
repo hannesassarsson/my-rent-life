@@ -8,6 +8,7 @@ import { DeliveryStatusPill, StatusPill } from "@/components/status-badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { dateTime } from "@/lib/format";
+import { errorMessage } from "@/lib/errors";
 
 const channelLabel: Record<string, string> = { email: "E-post", sms: "Sms" };
 
@@ -24,7 +25,7 @@ export function DeliveryAdmin() {
       toast.success(smsEnabled ? "Sms är påslaget" : "Sms är avstängt");
       void qc.invalidateQueries({ queryKey: ["delivery-admin"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   if (isPending || !data) return <LoadingBlock rows={2} />;

@@ -13,6 +13,7 @@ import { Logo } from "@/components/app-shell";
 import { requestPasswordReset, startDemo, type DemoKind } from "@/lib/public.functions";
 import { getBankIdAvailability } from "@/lib/bankid.functions";
 import { BankIdLoginButton, useBankIdResultToast } from "@/components/bankid";
+import { errorMessage } from "@/lib/errors";
 
 const DEMO_ROLES: { kind: DemoKind; label: string; description: string; to: string }[] = [
   { kind: "resident", label: "Boende", description: "Avgift, felanmälan, bokningar", to: "/app" },
@@ -131,7 +132,7 @@ function AuthPage() {
       if (error) throw error;
       void goHome("/app");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Något gick fel");
+      toast.error(errorMessage(error, "Något gick fel"));
     } finally {
       setBusy(false);
     }
@@ -157,7 +158,7 @@ function AuthPage() {
       const target = redirect && !Object.values(AREA_HOMES).includes(redirect) ? redirect : home;
       void navigate({ href: target, replace: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Kunde inte starta demon");
+      toast.error(errorMessage(error, "Kunde inte starta demon"));
     } finally {
       setBusy(false);
       setDemoKind(null);

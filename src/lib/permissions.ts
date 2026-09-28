@@ -26,6 +26,7 @@ export const PERMISSIONS = [
   "access.view",
   "access.edit",
   "settings.edit",
+  "audit.view",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -54,6 +55,7 @@ const ROLE_PERMISSIONS: Record<string, readonly Permission[]> = {
     "maintenance.edit",
     "inspections.view",
     "access.view",
+    "audit.view",
   ],
   // Fastighetsskötare: ärenden, fastigheter, bokningar, besiktningar och
   // entreprenörer.

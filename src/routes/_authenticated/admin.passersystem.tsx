@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { dateLong } from "@/lib/format";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/admin/passersystem")({
   head: () => ({ meta: [{ title: "Passersystem – Boendeplattformen" }] }),
@@ -119,7 +120,7 @@ function AccessAdminPage() {
       toast.success("Dörren är sparad");
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const issueM = useMutation({
@@ -139,7 +140,7 @@ function AccessAdminPage() {
       toast.success("Nyckeln är utfärdad");
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const revokeM = useMutation({
@@ -148,7 +149,7 @@ function AccessAdminPage() {
       toast.success("Nyckeln är återkallad och slutar fungera direkt");
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   if (isPending || !data) return <LoadingBlock rows={4} />;

@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { getResidentDetail } from "@/lib/app.functions";
 import { ResidentActions } from "@/components/resident-actions";
+import { Button } from "@/components/ui/button";
 import { MemberBankId } from "@/components/bankid";
 import { StatusPill } from "@/components/status-badge";
 import { PageHeader, Panel, DataRow, LoadingBlock, EmptyState } from "@/components/ui-kit";
@@ -27,7 +28,13 @@ function ResidentDetail() {
   });
 
   if (isPending) return <LoadingBlock rows={5} />;
-  if (!data) return <EmptyState title="Boende hittades inte" />;
+  if (!data)
+    return (
+      <EmptyState
+        title="Personen hittades inte"
+        description="Personen kan ha tagits bort. Gå tillbaka till listan och försök igen."
+      />
+    );
 
   const unit = data.residency.units;
 
@@ -45,7 +52,16 @@ function ResidentDetail() {
         subtitle={`${unit?.address ?? ""} · Lägenhet ${unit?.unit_number ?? ""} · ${
           data.residency.tenure === "rented" ? "Hyresgäst" : "Medlem"
         }`}
-        action={<ResidentActions residency={data.residency} />}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/admin/lagenheter/$id" params={{ id: data.residency.unit_id }}>
+                Visa lägenheten och hushållet
+              </Link>
+            </Button>
+            <ResidentActions residency={data.residency} />
+          </div>
+        }
       />
       {data.residency.status !== "active" ? (
         <div className="-mt-4 mb-6">
@@ -61,7 +77,16 @@ function ResidentDetail() {
             <DataRow label="E-post" value={data.residency.email ?? "—"} />
             <DataRow label="Telefon" value={data.residency.phone ?? "—"} />
             <DataRow label="Inflyttning" value={dateLong(data.residency.move_in_date)} />
-            <DataRow label="Konto" value={data.residency.user_id ? "Aktiverat" : "Ej aktiverat"} />
+            <DataRow
+              label="Konto"
+              value={
+                data.residency.user_id ? "Har konto" : "Inget konto – bjud in från lägenhetssidan"
+              }
+            />
+            <DataRow
+              label="Roll i hushållet"
+              value={data.residency.is_primary ? "Primär boende" : "Hushållsmedlem"}
+            />
           </dl>
           {data.residency.user_id ? <MemberBankId userId={data.residency.user_id} /> : null}
         </Panel>

@@ -7,10 +7,11 @@ import { toast } from "sonner";
 import { addRequestComment, getRequestDetail } from "@/lib/app.functions";
 import { RequestAttachments } from "@/components/request-attachments";
 import { DataRow, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
-import { PriorityBadge, RequestStatusBadge } from "@/components/status-badge";
+import { PriorityBadge, RequestProgress } from "@/components/status-badge";
 import { authorRoleLabel, dateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/app/felanmalan/$id")({
   head: () => ({
@@ -47,7 +48,7 @@ function RequestPage() {
       void qc.invalidateQueries({ queryKey: ["request", id] });
       void qc.invalidateQueries({ queryKey: ["my-requests"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   if (isPending || !data) return <LoadingBlock rows={4} />;
@@ -59,18 +60,17 @@ function RequestPage() {
         to="/app/felanmalan"
         className="mb-4 inline-block text-sm text-muted-foreground hover:text-foreground"
       >
-        ← Tillbaka till mina ärenden
+        ← Tillbaka till mina felanmälningar
       </Link>
       <PageHeader
         title={r.title}
         subtitle={`Ärende #${r.ticket_number} · ${r.category}${r.room ? ` · ${r.room}` : ""}`}
-        action={
-          <div className="flex items-center gap-2">
-            <PriorityBadge priority={r.priority} />
-            <RequestStatusBadge status={r.status} />
-          </div>
-        }
+        action={<PriorityBadge priority={r.priority} />}
       />
+
+      <Panel title="Så långt har det kommit" className="mb-5">
+        <RequestProgress status={r.status} />
+      </Panel>
 
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">

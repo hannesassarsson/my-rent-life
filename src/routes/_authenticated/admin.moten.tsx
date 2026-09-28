@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/admin/moten")({
   head: () => ({ meta: [{ title: "Möten – Boendeplattformen" }] }),
@@ -102,7 +103,7 @@ function AdminMeetingsPage() {
       toast.success("Mötet är sparat");
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const remove = useMutation({
@@ -112,7 +113,7 @@ function AdminMeetingsPage() {
       toast.success("Mötet är borttaget");
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   if (isPending || !data) return <LoadingBlock rows={4} />;

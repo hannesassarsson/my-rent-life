@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/admin/meddelanden")({
   head: () => ({ meta: [{ title: "Meddelanden – Boendeplattformen" }] }),
@@ -96,7 +97,7 @@ function AdminMessagesPage() {
       toast.success("Svaret är skickat");
       void qc.invalidateQueries({ queryKey: ["admin-messages"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const newMutation = useMutation({
@@ -116,7 +117,7 @@ function AdminMessagesPage() {
       toast.success("Meddelandet är skickat");
       void qc.invalidateQueries({ queryKey: ["admin-messages"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   if (isPending || !data) return <LoadingBlock rows={4} />;

@@ -14,6 +14,7 @@
 // med jämna mellanrum så att omförsök blir av.
 
 import { appUrl, serverDb, serverSecret } from "@/lib/server-db.server";
+import { dbError } from "@/lib/errors";
 
 export type Channel = "email" | "sms";
 
@@ -58,22 +59,25 @@ export type OutgoingMessage = {
   body: string | null;
   link: string | null;
   organizationName: string;
+  /** Knapptext; standard "Öppna i Boendeplattformen". */
+  button?: string;
+  /** Mejl till någon som inte har ett konto ännu (inga utskicksval i sidfoten). */
+  invitation?: boolean;
 };
 
 export function renderEmail(msg: OutgoingMessage, baseUrl = appUrl()) {
   const url = `${baseUrl}${msg.link ?? "/app"}`;
   const profileUrl = `${baseUrl}/app/profil`;
   const body = msg.body ?? "";
-  const text = [
-    msg.title,
-    "",
-    body,
-    "",
-    `Öppna: ${url}`,
-    "",
-    `Du får det här från ${msg.organizationName} via Boendeplattformen.`,
-    `Välj vilka utskick du vill ha: ${profileUrl}`,
-  ].join("\n");
+  const button = msg.button ?? "Öppna i Boendeplattformen";
+  const footerText = msg.invitation
+    ? `Du får det här från ${msg.organizationName} via Boendeplattformen. Om du inte väntade dig inbjudan kan du bortse från mejlet.`
+    : `Du får det här från ${msg.organizationName} via Boendeplattformen.\nVälj vilka utskick du vill ha: ${profileUrl}`;
+  const footerHtml = msg.invitation
+    ? `Du får det här från ${escapeHtml(msg.organizationName)} via Boendeplattformen. Om du inte väntade dig inbjudan kan du bortse från mejlet.`
+    : `Du får det här från ${escapeHtml(msg.organizationName)} via Boendeplattformen.
+<a href="${escapeHtml(profileUrl)}" style="color:#7a8194">Välj vilka utskick du vill ha</a>.`;
+  const text = [msg.title, "", body, "", `${button}: ${url}`, "", footerText].join("\n");
   const html = `<!doctype html>
 <html lang="sv"><body style="margin:0;background:#f4f1ea;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1c2333">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ea;padding:32px 12px">
@@ -85,11 +89,10 @@ export function renderEmail(msg: OutgoingMessage, baseUrl = appUrl()) {
 <tr><td style="padding:28px">
 <h1 style="margin:0 0 12px;font-size:20px;line-height:1.3">${escapeHtml(msg.title)}</h1>
 <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#3b4459">${escapeHtml(body).replace(/\n/g, "<br>")}</p>
-<a href="${escapeHtml(url)}" style="display:inline-block;background:#1e2a44;color:#ffffff;text-decoration:none;padding:11px 20px;border-radius:10px;font-size:14px;font-weight:600">Öppna i Boendeplattformen</a>
+<a href="${escapeHtml(url)}" style="display:inline-block;background:#1e2a44;color:#ffffff;text-decoration:none;padding:11px 20px;border-radius:10px;font-size:14px;font-weight:600">${escapeHtml(button)}</a>
 </td></tr>
 <tr><td style="padding:18px 28px;border-top:1px solid #ece7dc;font-size:12px;line-height:1.5;color:#7a8194">
-Du får det här från ${escapeHtml(msg.organizationName)} via Boendeplattformen.
-<a href="${escapeHtml(profileUrl)}" style="color:#7a8194">Välj vilka utskick du vill ha</a>.
+${footerHtml}
 </td></tr>
 </table>
 </td></tr>
@@ -244,7 +247,7 @@ export async function flushDeliveries(opts: { budgetMs?: number } = {}) {
       _channels: channels,
       _limit: 100,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     const rows = (data ?? []) as Claimed[];
     if (rows.length === 0) break;
     const [emails, sms] = await Promise.all([
@@ -293,4 +296,36 @@ export async function deliverQueuedOccasionally() {
   if (Date.now() - lastOpportunisticRun < 60_000) return;
   lastOpportunisticRun = Date.now();
   await deliverQueued(3000);
+}
+
+/**
+ * Skickar ett enskilt mejl direkt (utan kön), t.ex. en inbjudan till någon
+ * som inte har ett konto. Svarar med ett fel på svenska om det misslyckas.
+ */
+export async function sendDirectEmail(
+  to: string,
+  msg: OutgoingMessage,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!emailConfigured()) return { ok: false, error: "E-post är inte konfigurerat." };
+  if (!EMAIL_RE.test(to)) return { ok: false, error: "Ogiltig e-postadress." };
+  const from = process.env["EMAIL_FROM"] ?? "Boendeplattformen <onboarding@resend.dev>";
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env["RESEND_API_KEY"]}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from, to: [to], ...renderEmail(msg) }),
+    });
+    if (!res.ok) {
+      const json = (await res.json().catch(() => null)) as { message?: string } | null;
+      console.error(`Resend ${res.status}: ${json?.message ?? res.statusText}`);
+      return { ok: false, error: "Mejlet kunde inte skickas just nu." };
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error(`Resend: ${e instanceof Error ? e.message : String(e)}`);
+    return { ok: false, error: "Mejlet kunde inte skickas just nu." };
+  }
 }

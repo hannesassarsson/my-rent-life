@@ -36,7 +36,10 @@ export async function uploadFile(prefix: string, file: File) {
   const { error } = await supabase.storage
     .from(FILE_BUCKET)
     .upload(path, file, { contentType: file.type, upsert: false });
-  if (error) throw new Error(`Kunde inte ladda upp ${file.name}: ${error.message}`);
+  if (error)
+    throw new Error(
+      `Kunde inte ladda upp ${file.name}. Kontrollera att filen är en bild eller pdf och högst 10 MB, och försök igen.`,
+    );
   return path;
 }
 

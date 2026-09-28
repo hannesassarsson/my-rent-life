@@ -13,6 +13,7 @@ import {
   type BankPayment,
   type SieVoucher,
 } from "@/lib/bankfiles";
+import { dbError } from "@/lib/errors";
 
 type Db = SupabaseClient<Database>;
 
@@ -79,7 +80,7 @@ async function matchPayments(supabase: Db, orgId: string, content: string) {
         .eq("organization_id", orgId)
         .in("ocr", refs)
     : { data: [], error: null };
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   const byOcr = new Map((data ?? []).map((p) => [p.ocr, p]));
   const matches: BankMatch[] = parsed.payments.map((bp) => {
     const p = byOcr.get(bp.reference);
@@ -128,7 +129,7 @@ export const applyBankFile = createServerFn({ method: "POST" })
         .eq("organization_id", orgId)
         .neq("status", "paid")
         .select("id");
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
       registered += rows?.length ?? 0;
     }
     return {
@@ -155,7 +156,7 @@ export const getSampleBankFile = createServerFn({ method: "GET" })
         .order("period", { ascending: false })
         .limit(6),
     ]);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     if (!unpaid?.length)
       throw new Error("Det finns inga obetalda avier att göra en exempelfil av.");
     const content = buildBgMax(
@@ -184,7 +185,7 @@ export const exportSie = createServerFn({ method: "POST" })
         .lte("period", `${data.to}-01`)
         .order("period"),
     ]);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     if (!payments?.length) throw new Error("Det finns inga avier i den valda perioden.");
 
     const vouchers: SieVoucher[] = [];
@@ -258,6 +259,6 @@ export const saveBankDetails = createServerFn({ method: "POST" })
       .from("organizations")
       .update({ bankgiro: data.bankgiro || null, org_number: data.orgNumber || null })
       .eq("id", orgId);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });

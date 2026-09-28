@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/boka-demo")({
   head: () => ({
@@ -68,7 +69,7 @@ function BookDemoPage() {
           ...(form.website ? { website: form.website } : {}),
         },
       }),
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const set = (key: keyof typeof form) => (value: string) => setForm({ ...form, [key]: value });

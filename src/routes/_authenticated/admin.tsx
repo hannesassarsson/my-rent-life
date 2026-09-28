@@ -17,13 +17,16 @@ import {
   CreditCard,
   DoorOpen,
   Plug,
+  Home,
+  History,
+  Landmark,
 } from "lucide-react";
 
 import { AppShell, type NavItem } from "@/components/app-shell";
 
 const DAILY = "Dagligt arbete";
-const REGISTER = "Register och ekonomi";
-const ORG = "Organisation";
+const REGISTER = "Lägenheter och boende";
+const ORG = "Föreningen";
 
 const items: NavItem[] = [
   { label: "Översikt", to: "/admin", icon: LayoutDashboard, permission: "overview" },
@@ -70,18 +73,17 @@ const items: NavItem[] = [
     group: DAILY,
   },
   {
-    label: "Boende",
-    to: "/admin/boende",
-    icon: Users,
+    label: "Lägenheter",
+    to: "/admin/lagenheter",
+    icon: Home,
     permission: "residents.view",
-    term: "residentPlural",
     group: REGISTER,
   },
   {
-    label: "Fastigheter",
-    to: "/admin/fastigheter",
-    icon: Building2,
-    permission: "properties.view",
+    label: "Boende och konton",
+    to: "/admin/boende",
+    icon: Users,
+    permission: "residents.view",
     group: REGISTER,
   },
   {
@@ -92,10 +94,24 @@ const items: NavItem[] = [
     group: REGISTER,
   },
   {
-    label: "Inställningar",
+    label: "Föreningsinställningar",
+    to: "/admin/forening",
+    icon: Landmark,
+    permission: "settings.edit",
+    group: ORG,
+  },
+  {
+    label: "Användare och roller",
     to: "/admin/installningar",
     icon: Settings,
     permission: "settings.edit",
+    group: ORG,
+  },
+  {
+    label: "Historik",
+    to: "/admin/historik",
+    icon: History,
+    permission: "audit.view",
     group: ORG,
   },
   {
@@ -106,6 +122,13 @@ const items: NavItem[] = [
     group: ORG,
   },
   // Mer sällan använda verktyg, hopfällda under "Fler verktyg".
+  {
+    label: "Fastigheter",
+    to: "/admin/fastigheter",
+    icon: Building2,
+    permission: "properties.view",
+    advanced: true,
+  },
   {
     label: "Entreprenörer",
     to: "/admin/entreprenorer",

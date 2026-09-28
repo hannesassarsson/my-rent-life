@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/admin/ekonomi")({
   component: AdminEconomy,
@@ -97,7 +98,7 @@ function AdminEconomy() {
       );
       await refresh();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const remind = useMutation({
@@ -108,7 +109,7 @@ function AdminEconomy() {
       );
       await refresh();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const exportCsv = useMutation({
@@ -134,7 +135,7 @@ function AdminEconomy() {
         ),
       );
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const latest = data?.periods.find((p) => p.period <= monthStart(0)) ?? data?.periods[0];

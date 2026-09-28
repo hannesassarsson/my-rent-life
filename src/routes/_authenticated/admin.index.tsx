@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { FileText, Link2, Megaphone, UserPlus, Wrench } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
@@ -6,6 +7,7 @@ import { getAdminOverview } from "@/lib/app.functions";
 import { Kpi, Panel, LoadingBlock, EmptyState, PageHeader } from "@/components/ui-kit";
 import { ProjectStatusBadge, StatusPill } from "@/components/status-badge";
 import { dateLong, kr } from "@/lib/format";
+import { useCan } from "@/lib/use-can";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   component: AdminOverview,
@@ -13,6 +15,7 @@ export const Route = createFileRoute("/_authenticated/admin/")({
 
 function AdminOverview() {
   const fn = useServerFn(getAdminOverview);
+  const can = useCan();
   const { data, isPending, error } = useQuery({
     queryKey: ["admin-overview"],
     queryFn: () => fn(),
@@ -36,8 +39,18 @@ function AdminOverview() {
     <div>
       <PageHeader title="Översikt" subtitle={data.me.organization?.name ?? undefined} />
 
+      <QuickActions can={can} />
+
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Lägenheter" value={data.units.total} hint={`${data.units.active} aktiva`} />
+        <Kpi
+          label="Boende"
+          value={data.residents.total}
+          hint={`${data.residents.withAccount} har konto · ${data.units.total} lägenheter${
+            data.residents.pendingInvitations
+              ? ` · ${data.residents.pendingInvitations} inbjudna`
+              : ""
+          }`}
+        />
         <Kpi
           label="Felanmälningar"
           value={data.requests.open}
@@ -58,13 +71,13 @@ function AdminOverview() {
             hint="bokningsbara resurser"
           />
         )}
-        <Kpi label="Kommunikation" value={data.drafts.length} hint="opublicerade meddelanden" />
+        <Kpi label="Utkast" value={data.drafts.length} hint="nyheter som inte är publicerade" />
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <Panel
           title="Vad behöver jag veta idag?"
-          description="Sammanställs automatiskt varje dag av assistenten"
+          description="Räknas fram från föreningens uppgifter just nu"
         >
           <ul className="space-y-3 text-sm">
             {data.requests.stale > 0 ? (
@@ -169,5 +182,43 @@ function AdminOverview() {
         </Panel>
       </div>
     </div>
+  );
+}
+
+type Can = ReturnType<typeof useCan>;
+
+/** De vanligaste uppgifterna, som stora knappar med text. */
+function QuickActions({ can }: { can: Can }) {
+  const actions = [
+    can("residents.edit") && {
+      to: "/admin/boende",
+      icon: UserPlus,
+      label: "Lägg till boende",
+    },
+    can("residents.edit") && { to: "/admin/lagenheter", icon: Link2, label: "Bjud in boende" },
+    can("communication.edit") && {
+      to: "/admin/kommunikation",
+      icon: Megaphone,
+      label: "Publicera en nyhet",
+    },
+    can("requests.view") && { to: "/admin/arenden", icon: Wrench, label: "Se felanmälningar" },
+    can("documents.edit") && { to: "/admin/dokument", icon: FileText, label: "Lägg upp dokument" },
+  ].filter(Boolean) as { to: string; icon: typeof UserPlus; label: string }[];
+  if (actions.length === 0) return null;
+  return (
+    <nav aria-label="Snabbval" className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {actions.slice(0, 4).map((a) => (
+        <Link
+          key={a.label}
+          to={a.to}
+          className="card-surface flex min-h-14 items-center gap-3 px-4 py-3 text-base font-medium transition hover:border-primary"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
+            <a.icon className="size-5" />
+          </span>
+          {a.label}
+        </Link>
+      ))}
+    </nav>
   );
 }

@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   Megaphone,
+  Search,
   Users,
   Wrench,
 } from "lucide-react";
@@ -40,23 +41,25 @@ const items: NavItem[] = [
     term: "homeLabel",
     group: "Mitt boende",
   },
-  { label: "Nyheter", to: "/app/information", icon: Megaphone, group: "Från föreningen" },
-  { label: "Meddelanden", to: "/app/meddelanden", icon: MessageSquare, group: "Från föreningen" },
-  { label: "Dokument", to: "/app/dokument", icon: FileText, group: "Från föreningen" },
+  { label: "Nyheter", to: "/app/information", icon: Megaphone, group: "Föreningen" },
+  { label: "Meddelanden", to: "/app/meddelanden", icon: MessageSquare, group: "Föreningen" },
+  { label: "Dokument", to: "/app/dokument", icon: FileText, group: "Föreningen" },
   {
     label: "Möten",
     to: "/app/moten",
     icon: Users,
     term: "meetingsLabel",
     feature: "meetings",
-    group: "Från föreningen",
+    group: "Föreningen",
   },
+  { label: "Sök och hjälp", to: "/app/sok", icon: Search, group: "Hjälp" },
 ];
 
 const mobileTabs = [
   { to: "/app", label: "Hem" },
   { to: "/app/felanmalan", label: "Felanmälan" },
   { to: "/app/bokningar", label: "Boka" },
+  { to: "/app/sok", label: "Sök" },
 ];
 
 export const Route = createFileRoute("/_authenticated/app")({

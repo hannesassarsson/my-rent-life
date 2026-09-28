@@ -9,6 +9,7 @@ import { EmptyState, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit
 import { StatusPill } from "@/components/status-badge";
 import { dateLong } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/app/moten")({
   head: () => ({
@@ -35,7 +36,7 @@ function MeetingsPage() {
       toast.success("Din anmälan är sparad");
       void qc.invalidateQueries({ queryKey: ["meetings"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   if (isPending || !data) return <LoadingBlock rows={3} />;

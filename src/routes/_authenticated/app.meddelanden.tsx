@@ -10,6 +10,7 @@ import { authorRoleLabel, dateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/app/meddelanden")({
   head: () => ({
@@ -66,7 +67,7 @@ function MessagesPage() {
       toast.success("Meddelandet är skickat");
       void qc.invalidateQueries({ queryKey: ["messages"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   if (isPending || !data || !active) return <LoadingBlock rows={4} />;

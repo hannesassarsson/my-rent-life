@@ -23,6 +23,7 @@ import {
   type BillingInterval,
   type PlanId,
 } from "@/lib/plans";
+import { dbError } from "@/lib/errors";
 
 export type StripeMode = "test" | "live";
 
@@ -222,6 +223,6 @@ export async function saveBilling(
     _stripe_customer_id: target.customerId ?? null,
     _data: data as Json,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   return orgId;
 }

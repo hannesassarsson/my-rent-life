@@ -26,6 +26,7 @@ import {
   stripeConfigured,
   stripeMode,
 } from "@/lib/stripe.server";
+import { dbError } from "@/lib/errors";
 
 type Db = SupabaseClient<Database>;
 
@@ -40,7 +41,7 @@ async function loadBilling(supabase: Db, orgId: string) {
       .select("id", { count: "exact", head: true })
       .eq("organization_id", orgId),
   ]);
-  if (sub.error) throw new Error(sub.error.message);
+  if (sub.error) throw dbError(sub.error);
   return { subscription: sub.data, units: units.count ?? 0 };
 }
 

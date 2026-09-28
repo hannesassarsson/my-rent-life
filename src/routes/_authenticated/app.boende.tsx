@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useOrgProfile } from "@/lib/use-org-profile";
 import { OpenFileButton } from "@/components/open-file-button";
+import { ContactPanel as AssociationContact } from "@/components/contact-panel";
+import { KeyRound, UserRound } from "lucide-react";
 
 import { getMyHome } from "@/lib/app.functions";
 import { Button } from "@/components/ui/button";
@@ -46,8 +48,8 @@ function MyHome() {
       <div>
         <PageHeader title={profile.homeLabel} />
         <EmptyState
-          title="Ingen bostad kopplad"
-          description="Kontakta förvaltningen för att koppla ditt konto till din bostad."
+          title="Ditt konto är inte kopplat till en lägenhet"
+          description="Be styrelsen eller förvaltaren om en inbjudningslänk till din lägenhet. När du öppnar den kopplas kontot automatiskt."
         />
       </div>
     );
@@ -78,6 +80,36 @@ function MyHome() {
           </dl>
         </Panel>
 
+        <Panel title="Hushållet" description="De som är registrerade i lägenheten">
+          {data.household.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Ingen registrerad.</p>
+          ) : (
+            <ul className="space-y-2">
+              {data.household.map((h, i) => (
+                <li key={`${h.resident_name}-${i}`} className="flex items-center gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary-soft text-primary">
+                    <UserRound className="size-5" aria-hidden />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-base font-medium">
+                      {h.resident_name}
+                      {h.is_me ? (
+                        <span className="font-normal text-muted-foreground"> (du)</span>
+                      ) : null}
+                    </span>
+                    <span className="block text-sm text-muted-foreground">
+                      {h.is_primary ? "Primär boende" : "Hushållsmedlem"}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-4 text-sm text-muted-foreground">
+            Ska någon flytta in eller ut? Skriv till föreningen så uppdaterar de uppgifterna.
+          </p>
+        </Panel>
+
         <Panel title="Avtal och tillhörigheter">
           <dl>
             <DataRow
@@ -89,6 +121,13 @@ function MyHome() {
             <DataRow label="Parkering" value={unit.parking ?? "–"} />
             <DataRow label="Antal nycklar" value={unit.key_count} />
           </dl>
+          {data.me.features.includes("keys") ? (
+            <Button variant="outline" asChild className="mt-4">
+              <Link to="/app/nycklar">
+                <KeyRound className="size-4" /> Mina digitala nycklar
+              </Link>
+            </Button>
+          ) : null}
         </Panel>
 
         <ContactPanel
@@ -96,6 +135,8 @@ function MyHome() {
           email={data.me.profile?.email ?? ""}
           phone={data.me.profile?.phone ?? ""}
         />
+
+        <AssociationContact org={data.me.organization} />
 
         <Panel title="Fastighet">
           <dl>

@@ -10,6 +10,7 @@ import { EmptyState, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit
 import { StatusPill } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { dateLong } from "@/lib/format";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/app/nycklar")({
   head: () => ({ meta: [{ title: "Nycklar – Boendeplattformen" }] }),
@@ -47,7 +48,7 @@ function MyKeysPage() {
     },
     onError: (e: Error) => {
       setCard({ state: "idle" });
-      toast.error(e.message);
+      toast.error(errorMessage(e));
     },
   });
 

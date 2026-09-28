@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { dateLong } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 
 /** Meddelanden från BankID-flödet (?bankid=... i adressen). */
 export const BANKID_MESSAGES: Record<string, { text: string; ok?: boolean }> = {
@@ -95,7 +96,7 @@ export function BankIdPanel() {
     onSuccess: (res) => {
       window.location.href = res.url;
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
   const unlink = useMutation({
     mutationFn: () => unlinkFn(),
@@ -103,7 +104,7 @@ export function BankIdPanel() {
       toast.success("BankID-kopplingen är borttagen");
       void qc.invalidateQueries({ queryKey: ["my-bankid"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   return (
@@ -180,7 +181,7 @@ export function MemberBankId({ userId }: { userId: string }) {
       setPnr(null);
       refresh();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
   const unlink = useMutation({
     mutationFn: () => unlinkFn({ data: { userId } }),
@@ -188,7 +189,7 @@ export function MemberBankId({ userId }: { userId: string }) {
       toast.success("BankID-kopplingen är borttagen");
       refresh();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   if (!data) return null;

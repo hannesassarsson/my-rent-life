@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/entreprenor/$id")({
   head: () => ({ meta: [{ title: "Uppdrag – Boendeplattformen" }] }),
@@ -46,7 +47,7 @@ function JobPage() {
       void qc.invalidateQueries({ queryKey: ["request", id] });
       void qc.invalidateQueries({ queryKey: ["contractor-jobs"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   if (isPending || !data) return <LoadingBlock rows={4} />;

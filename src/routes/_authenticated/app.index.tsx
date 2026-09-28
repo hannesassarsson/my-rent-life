@@ -5,8 +5,9 @@ import { CalendarDays, ChevronRight, MessageSquare, Wrench } from "lucide-react"
 
 import { getResidentDashboard } from "@/lib/app.functions";
 import { Panel, EmptyState, LoadingBlock } from "@/components/ui-kit";
-import { PaymentStatusBadge, RequestStatusBadge, StatusPill } from "@/components/status-badge";
+import { PaymentStatusBadge, ResidentRequestStatus, StatusPill } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
+import { ContactPanel } from "@/components/contact-panel";
 import { dateLong, dateTime, greeting, kr, monthName, timeRange } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/app/")({
@@ -108,7 +109,7 @@ function ResidentOverview() {
         ) : null}
 
         <Panel
-          title="Viktig information"
+          title="Viktigt för dig"
           action={<PanelLink to="/app/information">Alla nyheter</PanelLink>}
         >
           {data.announcements.length === 0 ? (
@@ -118,20 +119,22 @@ function ResidentOverview() {
             />
           ) : (
             <ul className="space-y-3">
-              {data.announcements.map((a) => (
-                <li key={a.id}>
-                  <Link
-                    to="/app/information"
-                    className="block rounded-xl border border-border p-4 transition hover:border-primary"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="text-base font-medium">{a.title}</p>
-                      {a.is_pinned ? <StatusPill tone="info">Viktigt</StatusPill> : null}
-                    </div>
-                    <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{a.body}</p>
-                  </Link>
-                </li>
-              ))}
+              {[...data.announcements]
+                .sort((x, y) => Number(y.is_pinned) - Number(x.is_pinned))
+                .map((a) => (
+                  <li key={a.id}>
+                    <Link
+                      to="/app/information"
+                      className="block rounded-xl border border-border p-4 transition hover:border-primary"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-base font-medium">{a.title}</p>
+                        {a.is_pinned ? <StatusPill tone="info">Viktigt</StatusPill> : null}
+                      </div>
+                      <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{a.body}</p>
+                    </Link>
+                  </li>
+                ))}
             </ul>
           )}
         </Panel>
@@ -168,7 +171,7 @@ function ResidentOverview() {
                           Ärende {r.ticket_number} · uppdaterat {dateTime(r.updated_at)}
                         </p>
                       </div>
-                      <RequestStatusBadge status={r.status} />
+                      <ResidentRequestStatus status={r.status} />
                     </div>
                   </Link>
                 </li>
@@ -235,6 +238,18 @@ function ResidentOverview() {
             </ul>
           </Panel>
         ) : null}
+      </div>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <ContactPanel org={data.me.organization} />
+        <Panel title="Hittar du inte det du söker?">
+          <p className="text-base text-muted-foreground">
+            Sök bland dokument, nyheter och bokningar, eller läs svaren på vanliga frågor.
+          </p>
+          <Button asChild className="mt-4">
+            <Link to="/app/sok">Sök och hjälp</Link>
+          </Button>
+        </Panel>
       </div>
 
       {data.me.isStaff ? (

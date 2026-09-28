@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { kr } from "@/lib/format";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/admin/integrationer")({
   head: () => ({ meta: [{ title: "Integrationer – Boendeplattformen" }] }),
@@ -93,7 +94,7 @@ function IntegrationsPage() {
 
   const preview = useMutation({
     mutationFn: (content: string) => previewFn({ data: { content } }),
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const apply = useMutation({
@@ -107,7 +108,7 @@ function IntegrationsPage() {
       void qc.invalidateQueries({ queryKey: ["integrations"] });
       void qc.invalidateQueries({ queryKey: ["admin-economy"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const sample = useMutation({
@@ -118,7 +119,7 @@ function IntegrationsPage() {
         description: "Läs in den nedan för att se hur importen fungerar.",
       });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const sie = useMutation({
@@ -128,7 +129,7 @@ function IntegrationsPage() {
       download(r.fileName, bytes, "text/plain");
       toast.success(`SIE-filen är nedladdad (${r.vouchers} verifikationer)`);
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const save = useMutation({
@@ -138,7 +139,7 @@ function IntegrationsPage() {
       toast.success("Bankuppgifterna är sparade");
       void qc.invalidateQueries({ queryKey: ["integrations"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   async function onFile(f: File | undefined) {

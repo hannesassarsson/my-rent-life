@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/admin/fastigheter")({
   component: AdminProperties,
@@ -230,7 +231,7 @@ function UnitDialog({ unit, onClose }: { unit: Unit | null; onClose: () => void 
       setForId(null);
       onClose();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const field = (key: keyof UnitDraft, label: string, type = "text") => (

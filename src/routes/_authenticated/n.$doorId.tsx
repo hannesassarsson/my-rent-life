@@ -6,6 +6,7 @@ import { unlockDoor } from "@/lib/keys.functions";
 import { KeyCard, type KeyCardState } from "@/components/key-card";
 import { Logo } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
+import { errorMessage } from "@/lib/errors";
 
 /**
  * Hit leder NFC-etiketten vid dörren (adressen /n/<dörrens id>). När
@@ -38,7 +39,7 @@ function NfcUnlockPage() {
       })
       .catch((e: Error) => {
         setState("denied");
-        setMessage(e.message);
+        setMessage(errorMessage(e));
       });
   }, [doorId, unlockFn]);
 

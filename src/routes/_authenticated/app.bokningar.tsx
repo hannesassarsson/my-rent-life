@@ -31,9 +31,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { z } from "zod";
+
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/app/bokningar")({
+  validateSearch: z.object({ resurs: z.string().uuid().optional().catch(undefined) }),
   head: () => ({
     meta: [
       { title: "Bokningar – Boendeplattformen" },
@@ -62,7 +66,8 @@ function BookingsPage() {
   });
   const { data: myBookings } = useQuery({ queryKey: ["my-bookings"], queryFn: () => myFn() });
 
-  const [resourceId, setResourceId] = useState<string | null>(null);
+  const { resurs } = Route.useSearch();
+  const [resourceId, setResourceId] = useState<string | null>(resurs ?? null);
   const [date, setDate] = useState(() => toDateInput(new Date()));
   // Tvättstugan är det vanligaste att boka, så den väljs först om den finns.
   const activeResourceId =
@@ -94,7 +99,7 @@ function BookingsPage() {
       void qc.invalidateQueries({ queryKey: ["my-bookings"] });
       void qc.invalidateQueries({ queryKey: ["resident-dashboard"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const drop = useMutation({
@@ -106,7 +111,7 @@ function BookingsPage() {
       void qc.invalidateQueries({ queryKey: ["my-bookings"] });
       void qc.invalidateQueries({ queryKey: ["resident-dashboard"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   if (isPending || !resources) return <LoadingBlock rows={4} />;

@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/admin/arenden/$id")({
   component: AdminRequestDetail,
@@ -62,7 +63,7 @@ function AdminRequestDetail() {
       queryClient.invalidateQueries({ queryKey: ["admin-overview"] });
       toast.success("Ärendet uppdaterades");
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Kunde inte spara"),
+    onError: (error) => toast.error(errorMessage(error, "Kunde inte spara")),
   });
 
   if (isPending) return <LoadingBlock rows={5} />;

@@ -11,6 +11,7 @@ import {
   normalizePhone,
   smsConfigured,
 } from "@/lib/delivery.server";
+import { dbError } from "@/lib/errors";
 
 type Db = SupabaseClient<Database>;
 
@@ -78,7 +79,7 @@ export const saveMyNotificationSettings = createServerFn({ method: "POST" })
         _full_name: fullName,
         _phone: phone ?? "",
       });
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
     }
     const { error } = await supabase.from("notification_prefs").upsert({
       user_id: context.userId,
@@ -86,7 +87,7 @@ export const saveMyNotificationSettings = createServerFn({ method: "POST" })
       sms_enabled: data.smsEnabled,
       updated_at: new Date().toISOString(),
     });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true, phone };
   });
 
@@ -109,7 +110,7 @@ export const sendTestNotification = createServerFn({ method: "POST" })
       })
       .select("id")
       .single();
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     await deliverQueued();
     const { data: deliveries } = await supabase
       .from("notification_deliveries")
@@ -142,7 +143,7 @@ export const getDeliveryAdmin = createServerFn({ method: "GET" })
         .gte("created_at", since),
       supabase.from("profiles").select("id, full_name").eq("organization_id", orgId),
     ]);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     const names = new Map((members ?? []).map((m) => [m.id, m.full_name]));
     const count = (channel: string, status?: string) =>
       (stats ?? []).filter((s) => s.channel === channel && (!status || s.status === status)).length;
@@ -172,6 +173,6 @@ export const saveOrgDeliverySettings = createServerFn({ method: "POST" })
       .from("organizations")
       .update({ sms_enabled: data.smsEnabled })
       .eq("id", orgId);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });

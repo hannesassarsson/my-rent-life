@@ -20,6 +20,7 @@ import { StatusPill } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { dateLong } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/admin/abonnemang")({
   validateSearch: z.object({ kop: z.string().optional(), synk: z.coerce.number().optional() }),
@@ -85,7 +86,7 @@ function BillingPage() {
         if (r.ok) toast.success("Tack! Abonnemanget är aktiverat.");
         refresh();
       })
-      .catch((e: Error) => toast.error(e.message))
+      .catch((e: Error) => toast.error(errorMessage(e)))
       .finally(() => void navigate({ to: "/admin/abonnemang", search: {}, replace: true }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kop]);
@@ -95,7 +96,7 @@ function BillingPage() {
     if (!synk) return;
     refreshFn()
       .then(refresh)
-      .catch((e: Error) => toast.error(e.message))
+      .catch((e: Error) => toast.error(errorMessage(e)))
       .finally(() => void navigate({ to: "/admin/abonnemang", search: {}, replace: true }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [synk]);
@@ -123,13 +124,13 @@ function BillingPage() {
       toast.success("Abonnemanget är uppdaterat");
       refresh();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const portal = useMutation({
     mutationFn: () => portalFn(),
     onSuccess: (r) => window.location.assign(r.url),
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   if (isPending || !data) return <LoadingBlock rows={4} />;

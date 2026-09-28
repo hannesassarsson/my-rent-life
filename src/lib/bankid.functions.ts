@@ -7,6 +7,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { requirePermission } from "@/lib/app.functions";
 import { bankIdConfigured, personnummerForStorage, sealState } from "@/lib/bankid.server";
 import { serverDb, serverSecret } from "@/lib/server-db.server";
+import { dbError } from "@/lib/errors";
 
 type Db = SupabaseClient<Database>;
 
@@ -32,7 +33,7 @@ export const getMyBankId = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
     const { data, error } = await supabase.rpc("my_bankid");
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { configured: bankIdConfigured(), ...(data as MyBankId) };
   });
 
@@ -50,7 +51,7 @@ export const unlinkMyBankId = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { error } = await (context.supabase as Db).rpc("unlink_my_bankid");
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -64,7 +65,7 @@ export const getMemberBankId = createServerFn({ method: "GET" })
     const { data: rows, error } = await supabase.rpc("org_bankid_links", {
       _user_ids: [data.userId],
     });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     const row = rows?.[0];
     return {
       configured: bankIdConfigured(),
@@ -96,7 +97,7 @@ export const linkMemberBankId = createServerFn({ method: "POST" })
       _hint: stored.hint,
       _organization_id: orgId,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     if (result === "taken") throw new Error("Personnumret är redan kopplat till ett annat konto.");
     if (result === "demo") throw new Error("Demokonton kan inte kopplas till BankID.");
     return { hint: stored.hint };
@@ -109,6 +110,6 @@ export const unlinkMemberBankId = createServerFn({ method: "POST" })
     const supabase = context.supabase as Db;
     await requirePermission(supabase, context.userId, "residents.edit");
     const { error } = await supabase.rpc("unlink_member_bankid", { _user_id: data.userId });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });

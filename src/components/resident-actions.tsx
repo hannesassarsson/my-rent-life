@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { errorMessage } from "@/lib/errors";
 
 type Residency = {
   id: string;
@@ -38,7 +39,13 @@ type EditDraft = {
 };
 
 /** Knappar och dialoger för att redigera en boende och registrera utflytt. */
-export function ResidentActions({ residency }: { residency: Residency }) {
+export function ResidentActions({
+  residency,
+  size,
+}: {
+  residency: Residency;
+  size?: "sm" | "default";
+}) {
   const can = useCan();
   const qc = useQueryClient();
   const updateFn = useServerFn(updateResident);
@@ -50,6 +57,9 @@ export function ResidentActions({ residency }: { residency: Residency }) {
     void qc.invalidateQueries({ queryKey: ["resident-detail", residency.id] });
     void qc.invalidateQueries({ queryKey: ["admin-residents"] });
     void qc.invalidateQueries({ queryKey: ["admin-units"] });
+    void qc.invalidateQueries({ queryKey: ["unit-detail"] });
+    void qc.invalidateQueries({ queryKey: ["unit-registry"] });
+    void qc.invalidateQueries({ queryKey: ["audit-log"] });
   };
 
   const save = useMutation({
@@ -69,7 +79,7 @@ export function ResidentActions({ residency }: { residency: Residency }) {
       toast.success("Uppgifterna är sparade");
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const leave = useMutation({
@@ -80,7 +90,7 @@ export function ResidentActions({ residency }: { residency: Residency }) {
       toast.success("Utflyttningen är registrerad");
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   if (!can("residents.edit")) return null;
@@ -89,6 +99,7 @@ export function ResidentActions({ residency }: { residency: Residency }) {
     <div className="flex flex-wrap gap-2">
       <Button
         variant="outline"
+        size={size}
         onClick={() =>
           setEdit({
             residentName: residency.resident_name,
@@ -99,21 +110,22 @@ export function ResidentActions({ residency }: { residency: Residency }) {
           })
         }
       >
-        Redigera
+        Ändra uppgifter
       </Button>
       {residency.status === "active" ? (
         <Button
           variant="outline"
+          size={size}
           onClick={() => setMoveOut({ date: toDateInput(new Date()), vacate: true })}
         >
-          Registrera utflytt
+          Flytta ut
         </Button>
       ) : null}
 
       <Dialog open={!!edit} onOpenChange={(v) => !v && setEdit(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Redigera boende</DialogTitle>
+            <DialogTitle>Ändra uppgifter för {residency.resident_name}</DialogTitle>
           </DialogHeader>
           {edit ? (
             <div className="space-y-3">
@@ -185,13 +197,13 @@ export function ResidentActions({ residency }: { residency: Residency }) {
       <Dialog open={!!moveOut} onOpenChange={(v) => !v && setMoveOut(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Registrera utflytt</DialogTitle>
+            <DialogTitle>Flytta ut {residency.resident_name}?</DialogTitle>
           </DialogHeader>
           {moveOut ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                {residency.resident_name} markeras som utflyttad. Ett kopplat konto förlorar
-                tillgången till lägenheten, avgifterna och ärendena.
+                Personen tas bort från lägenheten men finns kvar i historiken. Ett kopplat konto
+                förlorar tillgången till lägenheten, avgifterna och ärendena.
               </p>
               <div className="space-y-2">
                 <Label htmlFor="moveout-date">Utflyttningsdatum</Label>
@@ -207,14 +219,14 @@ export function ResidentActions({ residency }: { residency: Residency }) {
                   checked={moveOut.vacate}
                   onCheckedChange={(v) => setMoveOut({ ...moveOut, vacate: v === true })}
                 />
-                Markera lägenheten som ledig
+                Markera lägenheten som ledig om ingen annan bor kvar
               </label>
               <Button
                 className="w-full"
                 disabled={!moveOut.date || leave.isPending}
                 onClick={() => leave.mutate(moveOut)}
               >
-                {leave.isPending ? "Sparar…" : "Registrera utflytt"}
+                {leave.isPending ? "Sparar…" : "Ja, flytta ut"}
               </Button>
             </div>
           ) : null}

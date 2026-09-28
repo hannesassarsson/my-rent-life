@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { dateTime } from "@/lib/format";
+import { errorMessage } from "@/lib/errors";
 
 const channelLabel = { email: "E-post", sms: "Sms" } as Record<string, string>;
 
@@ -58,7 +59,7 @@ export function ProfilePage() {
       void qc.invalidateQueries({ queryKey: ["notification-settings"] });
       void qc.invalidateQueries({ queryKey: ["me"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const saveContact = useMutation({
@@ -69,7 +70,7 @@ export function ProfilePage() {
       void qc.invalidateQueries({ queryKey: ["my-home"] });
       void qc.invalidateQueries({ queryKey: ["me"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const test = useMutation({
@@ -91,7 +92,7 @@ export function ProfilePage() {
       if (failed) toast.warning(`${summary}. ${failed.error ?? ""}`);
       else toast.success(summary);
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const dirty =

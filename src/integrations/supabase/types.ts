@@ -942,6 +942,12 @@ export type Database = {
       };
       organizations: {
         Row: {
+          contact_email: string | null;
+          contact_phone: string | null;
+          emergency_phone: string | null;
+          address: string | null;
+          about: string | null;
+          welcome_message: string | null;
           org_number: string | null;
           sms_enabled: boolean;
           bankgiro: string | null;
@@ -952,6 +958,12 @@ export type Database = {
           slug: string;
         };
         Insert: {
+          contact_email?: string | null;
+          contact_phone?: string | null;
+          emergency_phone?: string | null;
+          address?: string | null;
+          about?: string | null;
+          welcome_message?: string | null;
           org_number?: string | null;
           sms_enabled?: boolean;
           bankgiro?: string | null;
@@ -962,6 +974,12 @@ export type Database = {
           slug: string;
         };
         Update: {
+          contact_email?: string | null;
+          contact_phone?: string | null;
+          emergency_phone?: string | null;
+          address?: string | null;
+          about?: string | null;
+          welcome_message?: string | null;
           org_number?: string | null;
           sms_enabled?: boolean;
           bankgiro?: string | null;
@@ -1284,6 +1302,108 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      invitations: {
+        Row: {
+          id: string;
+          organization_id: string;
+          unit_id: string;
+          residency_id: string | null;
+          invitee_name: string | null;
+          invitee_email: string | null;
+          token_hash: string;
+          created_by: string | null;
+          created_at: string;
+          expires_at: string;
+          sent_at: string | null;
+          accepted_at: string | null;
+          accepted_by: string | null;
+          revoked_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          unit_id: string;
+          residency_id?: string | null;
+          invitee_name?: string | null;
+          invitee_email?: string | null;
+          token_hash: string;
+          created_by?: string | null;
+          created_at?: string;
+          expires_at?: string;
+          sent_at?: string | null;
+          accepted_at?: string | null;
+          accepted_by?: string | null;
+          revoked_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          unit_id?: string;
+          residency_id?: string | null;
+          invitee_name?: string | null;
+          invitee_email?: string | null;
+          token_hash?: string;
+          created_by?: string | null;
+          created_at?: string;
+          expires_at?: string;
+          sent_at?: string | null;
+          accepted_at?: string | null;
+          accepted_by?: string | null;
+          revoked_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "invitations_unit_id_fkey";
+            columns: ["unit_id"];
+            isOneToOne: false;
+            referencedRelation: "units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "invitations_residency_id_fkey";
+            columns: ["residency_id"];
+            isOneToOne: false;
+            referencedRelation: "residencies";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      audit_events: {
+        Row: {
+          id: string;
+          organization_id: string;
+          actor_id: string | null;
+          actor_name: string | null;
+          action: string;
+          summary: string;
+          unit_id: string | null;
+          residency_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          actor_id?: string | null;
+          actor_name?: string | null;
+          action: string;
+          summary: string;
+          unit_id?: string | null;
+          residency_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          actor_id?: string | null;
+          actor_name?: string | null;
+          action?: string;
+          summary?: string;
+          unit_id?: string | null;
+          residency_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
       };
       notification_prefs: {
         Row: {
@@ -1617,6 +1737,12 @@ export type Database = {
       pay_my_payment: {
         Args: { _payment_id: string; _method: string };
         Returns: undefined;
+      };
+      invitation_preview: { Args: { _token: string }; Returns: Json };
+      accept_invitation: { Args: { _token: string; _full_name?: string }; Returns: Json };
+      my_household: {
+        Args: Record<PropertyKey, never>;
+        Returns: { resident_name: string; is_primary: boolean; is_me: boolean }[];
       };
       update_my_contact: {
         Args: { _full_name: string; _phone: string };

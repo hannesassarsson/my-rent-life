@@ -12,6 +12,7 @@ import {
   requestStatusLabels,
 } from "@/lib/format";
 import { deliverQueued, deliverQueuedOccasionally } from "@/lib/delivery.server";
+import { dbError } from "@/lib/errors";
 
 type Db = SupabaseClient<Database>;
 
@@ -57,7 +58,7 @@ export async function loadMe(supabase: Db, userId: string) {
     supabase
       .from("profiles")
       .select(
-        "id, full_name, email, phone, organization_id, organizations(id, name, org_type, bankgiro, subscriptions(plan, status, trial_ends_at, past_due_since, is_demo, invoice_billing, addons))",
+        "id, full_name, email, phone, organization_id, organizations(id, name, org_type, bankgiro, contact_email, contact_phone, emergency_phone, address, about, welcome_message, subscriptions(plan, status, trial_ends_at, past_due_since, is_demo, invoice_billing, addons))",
       )
       .eq("id", userId)
       .maybeSingle(),
@@ -73,7 +74,18 @@ export async function loadMe(supabase: Db, userId: string) {
   ]);
   const orgRow = profileRow?.organizations ?? null;
   const org = orgRow
-    ? { id: orgRow.id, name: orgRow.name, org_type: orgRow.org_type, bankgiro: orgRow.bankgiro }
+    ? {
+        id: orgRow.id,
+        name: orgRow.name,
+        org_type: orgRow.org_type,
+        bankgiro: orgRow.bankgiro,
+        contact_email: orgRow.contact_email,
+        contact_phone: orgRow.contact_phone,
+        emergency_phone: orgRow.emergency_phone,
+        address: orgRow.address,
+        about: orgRow.about,
+        welcome_message: orgRow.welcome_message,
+      }
     : null;
   const profile = profileRow
     ? {
@@ -229,7 +241,7 @@ export const getMyHome = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const [me, documents, inspections] = await Promise.all([
+    const [me, documents, inspections, household] = await Promise.all([
       loadMe(supabase, context.userId),
       supabase
         .from("documents")
@@ -243,9 +255,11 @@ export const getMyHome = createServerFn({ method: "GET" })
         )
         .neq("status", "cancelled")
         .order("scheduled_at", { ascending: false }),
+      supabase.rpc("my_household"),
     ]);
     return {
       me,
+      household: household.data ?? [],
       documents: documents.data ?? [],
       inspections: me.features.includes("inspections") ? (inspections.data ?? []) : [],
     };
@@ -338,7 +352,7 @@ export const createRequest = createServerFn({ method: "POST" })
       })
       .select("id, ticket_number, organization_id")
       .single();
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     logFailure(
       "Händelselogg",
       await supabase.from("maintenance_events").insert({
@@ -378,7 +392,7 @@ export const addRequestComment = createServerFn({ method: "POST" })
             : "resident",
         body: data.body.trim(),
       });
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
     }
 
     if (data.body.trim() && (me.isStaff || me.isContractor)) {
@@ -401,7 +415,7 @@ export const addRequestComment = createServerFn({ method: "POST" })
         )
         .eq("id", data.requestId)
         .select("id");
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
       if (!updated?.length) throw new Error("Ärendet kunde inte uppdateras");
       logFailure(
         "Händelselogg",
@@ -579,7 +593,7 @@ export const setMeetingAttendance = createServerFn({ method: "POST" })
       },
       { onConflict: "meeting_id,user_id" },
     );
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -651,7 +665,7 @@ export const sendMessage = createServerFn({ method: "POST" })
       sender_role: staff ? senderRole(me.roles) : "resident",
       body: data.body,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     if (staff && data.residentUserId) {
       logFailure(
         "Notis",
@@ -752,43 +766,68 @@ export const getAdminOverview = createServerFn({ method: "GET" })
       .maybeSingle();
     const currentPeriod = latestPayment?.period ?? null;
 
-    const [units, requests, payments, bookings, drafts, resources, projects, meetings] =
-      await Promise.all([
-        supabase.from("units").select("id, status").eq("organization_id", orgId),
-        supabase
-          .from("maintenance_requests")
-          .select("id, status, priority, is_urgent, created_at, resolved_at, category")
-          .eq("organization_id", orgId),
-        currentPeriod
-          ? supabase
-              .from("payments")
-              .select("status, amount, period")
-              .eq("organization_id", orgId)
-              .eq("period", currentPeriod)
-          : Promise.resolve({ data: [] as never[] }),
-        supabase
-          .from("bookings")
-          .select("id, resource_id, starts_at")
-          .eq("organization_id", orgId)
-          .gte("starts_at", new Date(Date.now() - 30 * 864e5).toISOString()),
-        supabase
-          .from("announcements")
-          .select("id, title")
-          .eq("organization_id", orgId)
-          .eq("is_published", false),
-        supabase
-          .from("resources")
-          .select("id, name, slot_minutes, open_from, open_to")
-          .eq("organization_id", orgId)
-          .eq("is_active", true),
-        supabase.from("maintenance_projects").select("*").eq("organization_id", orgId),
-        supabase
-          .from("meetings")
-          .select("id, title, starts_at")
-          .gte("starts_at", new Date().toISOString())
-          .order("starts_at", { ascending: true })
-          .limit(1),
-      ]);
+    const canInvite = me.permissions.includes("residents.edit");
+    const [
+      units,
+      requests,
+      payments,
+      bookings,
+      drafts,
+      resources,
+      projects,
+      meetings,
+      residentRows,
+      invitations,
+    ] = await Promise.all([
+      supabase.from("units").select("id, status").eq("organization_id", orgId),
+      supabase
+        .from("maintenance_requests")
+        .select("id, status, priority, is_urgent, created_at, resolved_at, category")
+        .eq("organization_id", orgId),
+      currentPeriod
+        ? supabase
+            .from("payments")
+            .select("status, amount, period")
+            .eq("organization_id", orgId)
+            .eq("period", currentPeriod)
+        : Promise.resolve({ data: [] as never[] }),
+      supabase
+        .from("bookings")
+        .select("id, resource_id, starts_at")
+        .eq("organization_id", orgId)
+        .gte("starts_at", new Date(Date.now() - 30 * 864e5).toISOString()),
+      supabase
+        .from("announcements")
+        .select("id, title")
+        .eq("organization_id", orgId)
+        .eq("is_published", false),
+      supabase
+        .from("resources")
+        .select("id, name, slot_minutes, open_from, open_to")
+        .eq("organization_id", orgId)
+        .eq("is_active", true),
+      supabase.from("maintenance_projects").select("*").eq("organization_id", orgId),
+      supabase
+        .from("meetings")
+        .select("id, title, starts_at")
+        .gte("starts_at", new Date().toISOString())
+        .order("starts_at", { ascending: true })
+        .limit(1),
+      supabase
+        .from("residencies")
+        .select("user_id")
+        .eq("organization_id", orgId)
+        .eq("status", "active"),
+      canInvite
+        ? supabase
+            .from("invitations")
+            .select("id", { count: "exact", head: true })
+            .eq("organization_id", orgId)
+            .is("accepted_at", null)
+            .is("revoked_at", null)
+            .gt("expires_at", new Date().toISOString())
+        : Promise.resolve({ count: null }),
+    ]);
 
     const reqs = requests.data ?? [];
     const open = reqs.filter((r) => !["resolved", "closed"].includes(r.status as string));
@@ -834,6 +873,11 @@ export const getAdminOverview = createServerFn({ method: "GET" })
       units: {
         total: units.data?.length ?? 0,
         active: (units.data ?? []).filter((u) => u.status === "active").length,
+      },
+      residents: {
+        total: residentRows.data?.length ?? 0,
+        withAccount: (residentRows.data ?? []).filter((r) => r.user_id).length,
+        pendingInvitations: invitations.count ?? null,
       },
       requests: {
         total: reqs.length,
@@ -901,7 +945,7 @@ export const updateRequestAdmin = createServerFn({ method: "POST" })
         .from("maintenance_requests")
         .update(patch as never)
         .eq("id", data.id);
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
     }
 
     const labels: string[] = [];
@@ -933,7 +977,7 @@ export const updateRequestAdmin = createServerFn({ method: "POST" })
         author_role: "staff",
         body: data.note.trim(),
       });
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
     }
     if (data.status || data.note?.trim()) {
       await notifyReporter(
@@ -989,28 +1033,69 @@ export const getAdminResidents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requirePermission(supabase, context.userId, "residents.view");
-    const [residents, units] = await Promise.all([
+    const { me, orgId } = await requirePermission(supabase, context.userId, "residents.view");
+    const canEdit = me.permissions.includes("residents.edit");
+    const [residents, units, invitations, profiles, roles] = await Promise.all([
       supabase
         .from("residencies")
         .select(
-          "id, resident_name, email, phone, move_in_date, move_out_date, tenure, status, user_id, unit_id, units(unit_number, address)",
+          "id, resident_name, email, phone, move_in_date, move_out_date, tenure, status, is_primary, user_id, unit_id, units(unit_number, address)",
         )
         .eq("organization_id", orgId)
         .order("resident_name")
-        .limit(500),
+        .limit(3000),
       supabase
         .from("units")
         .select("id, unit_number, address, tenure, status")
         .eq("organization_id", orgId)
         .order("address")
-        .order("unit_number"),
+        .order("unit_number")
+        .limit(1000),
+      canEdit
+        ? supabase
+            .from("invitations")
+            .select("residency_id, invitee_name, invitee_email, unit_id, created_at")
+            .eq("organization_id", orgId)
+            .is("accepted_at", null)
+            .is("revoked_at", null)
+            .gt("expires_at", new Date().toISOString())
+        : Promise.resolve({ data: [] }),
+      supabase.from("profiles").select("id, full_name, email").eq("organization_id", orgId),
+      supabase.from("user_roles").select("user_id, role").eq("organization_id", orgId),
     ]);
+    const invited = new Set((invitations.data ?? []).map((i) => i.residency_id).filter(Boolean));
+    const linked = new Set(
+      (residents.data ?? [])
+        .filter((r) => r.status === "active" && r.user_id)
+        .map((r) => r.user_id),
+    );
+    const staffRoles = new Set(STAFF_ROLES);
+    const roleOf = new Map<string, string[]>();
+    for (const r of roles.data ?? [])
+      roleOf.set(r.user_id, [...(roleOf.get(r.user_id) ?? []), r.role]);
+    // Konton med rollen boende som inte är kopplade till någon lägenhet.
+    const accountsWithoutHome = (profiles.data ?? []).filter((p) => {
+      const rs = roleOf.get(p.id) ?? [];
+      return !linked.has(p.id) && rs.includes("resident") && !rs.some((r) => staffRoles.has(r));
+    });
     const occupied = new Set(
       (residents.data ?? []).filter((r) => r.status === "active").map((r) => r.unit_id),
     );
     return {
-      residents: residents.data ?? [],
+      canEdit,
+      residents: (residents.data ?? []).map((r) => ({
+        ...r,
+        invited: invited.has(r.id),
+      })),
+      // Inbjudningar till nya personer som ännu inte finns som boende.
+      pendingInvitations: (invitations.data ?? [])
+        .filter((i) => !i.residency_id)
+        .map((i) => ({
+          ...i,
+          unit: (units.data ?? []).find((u) => u.id === i.unit_id) ?? null,
+        })),
+      accountsWithoutHome,
+      units: units.data ?? [],
       vacantUnits: (units.data ?? []).filter((u) => !occupied.has(u.id)),
     };
   });
@@ -1104,7 +1189,7 @@ export const saveContractor = createServerFn({ method: "POST" })
     const { error } = data.id
       ? await supabase.from("contractors").update(row).eq("id", data.id)
       : await supabase.from("contractors").insert(row);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -1160,7 +1245,7 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
     const { error } = data.id
       ? await supabase.from("announcements").update(row).eq("id", data.id)
       : await supabase.from("announcements").insert(row);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     if (data.publish) {
       await notifyMembers(supabase, orgId, context.userId, {
         title: `Ny information: ${data.title}`,
@@ -1184,7 +1269,7 @@ export const publishAnnouncement = createServerFn({ method: "POST" })
         published_at: data.publish ? new Date().toISOString() : null,
       })
       .eq("id", data.id);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -1242,7 +1327,7 @@ export const updateResource = createServerFn({ method: "POST" })
         is_active: data.isActive,
       })
       .eq("id", data.id);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -1297,7 +1382,7 @@ export const markPaymentPaid = createServerFn({ method: "POST" })
       .from("payments")
       .update({ status: "paid", paid_at: new Date().toISOString(), paid_via: "manual" })
       .eq("id", data.id);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -1337,7 +1422,7 @@ export const saveMaintenanceProject = createServerFn({ method: "POST" })
     const { error } = data.id
       ? await supabase.from("maintenance_projects").update(row).eq("id", data.id)
       : await supabase.from("maintenance_projects").insert(row);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -1433,7 +1518,7 @@ export const updateContractorJob = createServerFn({ method: "POST" })
           resolved_at: status === "resolved" ? new Date().toISOString() : null,
         })
         .eq("id", data.id);
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
     }
 
     const company = companies.find((c) => c.id === job.contractor_id)?.company ?? "Entreprenören";
@@ -1463,7 +1548,7 @@ export const updateContractorJob = createServerFn({ method: "POST" })
         author_role: "contractor",
         body: data.note.trim(),
       });
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
     }
     if (labels.length > 0 || data.note?.trim()) {
       await notifyReporter(
@@ -1531,7 +1616,7 @@ export const saveMeeting = createServerFn({ method: "POST" })
     const { error } = data.id
       ? await supabase.from("meetings").update(row).eq("id", data.id).eq("organization_id", orgId)
       : await supabase.from("meetings").insert(row);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     if (!data.id) {
       const when = new Intl.DateTimeFormat("sv-SE", {
         timeZone: "Europe/Stockholm",
@@ -1560,7 +1645,7 @@ export const deleteMeeting = createServerFn({ method: "POST" })
       .delete()
       .eq("id", data.id)
       .eq("organization_id", orgId);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -1596,7 +1681,7 @@ export const updateResident = createServerFn({ method: "POST" })
       })
       .eq("id", data.id)
       .eq("organization_id", orgId);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -1608,20 +1693,24 @@ export const moveOutResident = createServerFn({ method: "POST" })
     const { orgId } = await requirePermission(supabase, context.userId, "residents.edit");
     const { data: residency, error } = await supabase
       .from("residencies")
-      .update({ status: "moved_out", move_out_date: data.moveOutDate })
+      .update({ status: "moved_out", move_out_date: data.moveOutDate, is_primary: false })
       .eq("id", data.id)
       .eq("organization_id", orgId)
       .select("unit_id")
       .single();
-    if (error) throw new Error(error.message);
-    if (data.vacateUnit) {
-      const { count } = await supabase
-        .from("residencies")
-        .select("id", { count: "exact", head: true })
-        .eq("unit_id", residency.unit_id)
-        .eq("status", "active");
-      if (!count)
+    if (error) throw dbError(error);
+    const { data: left } = await supabase
+      .from("residencies")
+      .select("id, is_primary")
+      .eq("unit_id", residency.unit_id)
+      .eq("status", "active");
+    if (!left?.length) {
+      if (data.vacateUnit) {
         await supabase.from("units").update({ status: "vacant" }).eq("id", residency.unit_id);
+      }
+    } else if (!left.some((r) => r.is_primary)) {
+      // Någon i hushållet blir primär boende när den primära flyttar ut.
+      await supabase.from("residencies").update({ is_primary: true }).eq("id", left[0]!.id);
     }
     return { ok: true };
   });
@@ -1654,7 +1743,7 @@ export const moveInResident = createServerFn({ method: "POST" })
       })
       .select("id")
       .single();
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     await supabase.from("units").update({ status: "active" }).eq("id", data.unitId);
     return { id: created.id };
   });
@@ -1693,7 +1782,7 @@ export const updateUnit = createServerFn({ method: "POST" })
       })
       .eq("id", data.id)
       .eq("organization_id", orgId);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -1706,7 +1795,7 @@ export const updateMyContact = createServerFn({ method: "POST" })
       _full_name: data.fullName,
       _phone: data.phone,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -1753,7 +1842,7 @@ export const createBilling = createServerFn({ method: "POST" })
       }));
     if (rows.length > 0) {
       const { error } = await supabase.from("payments").insert(rows);
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
     }
     return {
       created: rows.length,
@@ -1807,10 +1896,10 @@ export const sendReminders = createServerFn({ method: "POST" })
         "id",
         payments.map((p) => p.id),
       );
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     if (notifications.length > 0) {
       const { error: notifyError } = await supabase.from("notifications").insert(notifications);
-      if (notifyError) throw new Error(notifyError.message);
+      if (notifyError) throw dbError(notifyError);
       await deliverQueued();
     }
     return { reminded: payments.length, notified: notifications.length };
@@ -1861,7 +1950,7 @@ export const payMyPayment = createServerFn({ method: "POST" })
       _payment_id: data.id,
       _method: data.method,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -1869,7 +1958,15 @@ export const payMyPayment = createServerFn({ method: "POST" })
 
 export const updateOrganization = createServerFn({ method: "POST" })
   .inputValidator(
-    z.object({ name: shortText.min(1), orgType: z.enum(["brf", "rental", "manager"]) }),
+    z.object({
+      name: shortText.min(1, "Fyll i föreningens namn"),
+      orgType: z.enum(["brf", "rental", "manager"]),
+      contactEmail: optionalEmail,
+      contactPhone: z.string().trim().max(40),
+      emergencyPhone: z.string().trim().max(40),
+      address: shortText,
+      about: z.string().trim().max(4000),
+    }),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
@@ -1877,9 +1974,31 @@ export const updateOrganization = createServerFn({ method: "POST" })
     const { orgId } = await requirePermission(supabase, context.userId, "settings.edit");
     const { error } = await supabase
       .from("organizations")
-      .update({ name: data.name, org_type: data.orgType })
+      .update({
+        name: data.name,
+        org_type: data.orgType,
+        contact_email: data.contactEmail || null,
+        contact_phone: data.contactPhone || null,
+        emergency_phone: data.emergencyPhone || null,
+        address: data.address || null,
+        about: data.about || null,
+      })
       .eq("id", orgId);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
+    return { ok: true };
+  });
+
+export const updateWelcomeMessage = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ message: z.string().trim().max(4000) }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "settings.edit");
+    const { error } = await supabase
+      .from("organizations")
+      .update({ welcome_message: data.message || null })
+      .eq("id", orgId);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -1905,7 +2024,7 @@ export const setMemberRole = createServerFn({ method: "POST" })
       _user_id: data.userId,
       _role: data.role,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -1937,7 +2056,7 @@ export const markNotificationsRead = createServerFn({ method: "POST" })
       .eq("is_read", false);
     if (data.ids) query = query.in("id", data.ids);
     const { error } = await query;
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -1984,7 +2103,7 @@ export const addRequestAttachments = createServerFn({ method: "POST" })
         uploaded_by: context.userId,
       })),
     );
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     logFailure(
       "Händelselogg",
       await supabase.from("maintenance_events").insert({
@@ -2052,7 +2171,7 @@ export const saveDocument = createServerFn({ method: "POST" })
       file_kind: data.fileKind,
       file_size: data.fileSize,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -2069,7 +2188,7 @@ export const deleteDocument = createServerFn({ method: "POST" })
       .eq("organization_id", orgId)
       .select("storage_path")
       .maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     if (doc?.storage_path) await supabase.storage.from("files").remove([doc.storage_path]);
     return { ok: true };
   });
@@ -2105,13 +2224,13 @@ async function notifyAffectedResidents(
   const { data, error } = target.unitId
     ? await query.eq("unit_id", target.unitId)
     : await query.eq("units.buildings.property_id", target.propertyId);
-  if (error) throw new Error(error.message);
+  if (error) throw dbError(error);
   const userIds = [...new Set((data ?? []).map((r) => r.user_id as string))];
   if (userIds.length === 0) return;
   const { error: notifyError } = await supabase
     .from("notifications")
     .insert(userIds.map((user_id) => ({ organization_id: orgId, user_id, ...notification })));
-  if (notifyError) throw new Error(notifyError.message);
+  if (notifyError) throw dbError(notifyError);
   await deliverQueued();
 }
 
@@ -2133,7 +2252,7 @@ export const getAdminInspections = createServerFn({ method: "GET" })
         .eq("organization_id", orgId)
         .order("unit_number"),
     ]);
-    if (inspections.error) throw new Error(inspections.error.message);
+    if (inspections.error) throw dbError(inspections.error);
     return {
       inspections: inspections.data ?? [],
       properties: properties.data ?? [],
@@ -2178,7 +2297,7 @@ export const saveInspection = createServerFn({ method: "POST" })
           .eq("id", data.id)
           .eq("organization_id", orgId)
       : await supabase.from("inspections").insert(row);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
 
     const when = new Intl.DateTimeFormat("sv-SE", {
       timeZone: "Europe/Stockholm",
@@ -2239,7 +2358,7 @@ export const completeInspection = createServerFn({ method: "POST" })
       .eq("organization_id", orgId)
       .select("kind, unit_id, property_id")
       .maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     if (!inspection) throw new Error("Besiktningen hittades inte");
     if (firstTime && inspection.unit_id && inspection.property_id) {
       await notifyAffectedResidents(
@@ -2267,6 +2386,6 @@ export const cancelInspection = createServerFn({ method: "POST" })
       .update({ status: "cancelled" })
       .eq("id", data.id)
       .eq("organization_id", orgId);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });

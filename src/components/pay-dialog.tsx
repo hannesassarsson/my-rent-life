@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { dateLong, kr, monthName } from "@/lib/format";
+import { errorMessage } from "@/lib/errors";
 
 export type PayMethod = "card" | "swish" | "bank";
 
@@ -76,7 +77,7 @@ export function PayDialog({
       void qc.invalidateQueries({ queryKey: ["my-economy"] });
       void qc.invalidateQueries({ queryKey: ["resident-dashboard"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   return (

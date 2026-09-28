@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { addRequestAttachments, createRequest, getMyRequests } from "@/lib/app.functions";
 import { IMAGE_TYPES, attachImages, checkFile } from "@/lib/files";
 import { EmptyState, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
-import { PriorityBadge, RequestStatusBadge } from "@/components/status-badge";
+import { PriorityBadge, ResidentRequestStatus } from "@/components/status-badge";
 import { categoryLabels, dateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/app/felanmalan/")({
   head: () => ({
@@ -79,7 +80,7 @@ function MyRequests() {
         try {
           await attachImages(attach, created, images);
         } catch (e) {
-          toast.error(e instanceof Error ? e.message : "Bilderna kunde inte laddas upp");
+          toast.error(errorMessage(e, "Bilderna kunde inte laddas upp"));
         }
       }
       return created;
@@ -93,7 +94,7 @@ function MyRequests() {
       setOpen(false);
       reset();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   return (
@@ -204,7 +205,7 @@ function MyRequests() {
                           files.forEach((f) => checkFile(f, IMAGE_TYPES));
                           setImages(files.slice(0, 5));
                         } catch (err) {
-                          toast.error(err instanceof Error ? err.message : "Ogiltig fil");
+                          toast.error(errorMessage(err, "Ogiltig fil"));
                           e.target.value = "";
                         }
                       }}
@@ -299,7 +300,7 @@ function MyRequests() {
                     </div>
                     <div className="flex items-center gap-2">
                       <PriorityBadge priority={r.priority} />
-                      <RequestStatusBadge status={r.status} />
+                      <ResidentRequestStatus status={r.status} />
                     </div>
                   </div>
                 </Link>

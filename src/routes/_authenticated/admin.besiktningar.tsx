@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/admin/besiktningar")({
   head: () => ({ meta: [{ title: "Besiktningar – Boendeplattformen" }] }),
@@ -106,7 +107,7 @@ function AdminInspectionsPage() {
       toast.success("Besiktningen är planerad och de boende har aviserats");
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const complete = useMutation({
@@ -124,7 +125,7 @@ function AdminInspectionsPage() {
       toast.success("Protokollet är sparat");
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   const cancel = useMutation({
@@ -134,7 +135,7 @@ function AdminInspectionsPage() {
       toast.success("Besiktningen är inställd");
       invalidate();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   if (isPending || !data) return <LoadingBlock rows={4} />;

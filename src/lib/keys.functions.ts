@@ -6,6 +6,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import { loadMe, requirePermission } from "@/lib/app.functions";
 import { deliverQueued } from "@/lib/delivery.server";
+import { dbError } from "@/lib/errors";
 
 // Digitala nycklar. Behörigheten prövas i databasen (unlock_door), som också
 // loggar passagen. I en riktig installation anropar servern därefter
@@ -65,7 +66,7 @@ export const getMyKeys = createServerFn({ method: "GET" })
         .limit(15),
       supabase.rpc("my_property_ids", { _user_id: context.userId }),
     ]);
-    if (doors.error) throw new Error(doors.error.message);
+    if (doors.error) throw dbError(doors.error);
 
     const now = Date.now();
     const activeKeys = (keys.data ?? []).filter(
@@ -104,7 +105,7 @@ export const unlockDoor = createServerFn({ method: "POST" })
       _door_id: data.doorId,
       _method: data.method,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     // Här skulle låsleverantörens API anropas när resultatet är "granted".
     return result as UnlockResult;
   });
@@ -141,7 +142,7 @@ export const getAccessAdmin = createServerFn({ method: "GET" })
         .eq("organization_id", orgId)
         .not("user_id", "is", null),
     ]);
-    if (doors.error) throw new Error(doors.error.message);
+    if (doors.error) throw dbError(doors.error);
     const holders = [
       ...(people.data ?? []).map((p) => ({
         userId: p.user_id as string,
@@ -198,7 +199,7 @@ export const saveDoor = createServerFn({ method: "POST" })
           .eq("id", data.id)
           .eq("organization_id", orgId)
       : await supabase.from("access_doors").insert(row);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -232,7 +233,7 @@ export const issueKey = createServerFn({ method: "POST" })
       note: data.note || null,
       created_by: context.userId,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     if (data.userId) {
       const { error: notifyError } = await supabase.from("notifications").insert({
         organization_id: orgId,
@@ -261,7 +262,7 @@ export const revokeKey = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .eq("organization_id", orgId)
       .select("id");
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     if (!rows?.length) throw new Error("Nyckeln hittades inte");
     return { ok: true };
   });

@@ -8,6 +8,7 @@ import { addRequestAttachments } from "@/lib/app.functions";
 import { IMAGE_TYPES, attachImages, signedUrls } from "@/lib/files";
 import { Panel } from "@/components/ui-kit";
 import { Button } from "@/components/ui/button";
+import { errorMessage } from "@/lib/errors";
 
 type Attachment = { id: string; storage_path: string; file_name: string };
 
@@ -44,7 +45,7 @@ export function RequestAttachments({
       toast.success(files.length === 1 ? "Bilden är bifogad" : "Bilderna är bifogade");
       await qc.invalidateQueries({ queryKey: ["request", request.id] });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Kunde inte ladda upp");
+      toast.error(errorMessage(e, "Kunde inte ladda upp"));
     } finally {
       setBusy(false);
       if (input.current) input.current.value = "";
