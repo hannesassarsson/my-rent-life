@@ -18,7 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/app-shell";
 import { StatusPill } from "@/components/status-badge";
 import { SiteHeader } from "@/components/site-header";
-import { AudienceArt, KeyScene, NeighborhoodScene, Skyline } from "@/components/illustrations";
+import { AudienceArt, KeyScene, Skyline } from "@/components/illustrations";
+import { HeroAnimation } from "@/components/hero-animation";
 import { getPublicStats, type PublicStats } from "@/lib/public.functions";
 
 export const Route = createFileRoute("/")({
@@ -146,44 +147,6 @@ const after = [
 ];
 
 /** Kvarteret med svävande kort ur appen. */
-function HeroVisual() {
-  return (
-    <div className="relative">
-      <NeighborhoodScene className="drop-shadow-[0_24px_48px_oklch(0.3_0.08_256_/_0.18)]" />
-      <div className="animate-float absolute top-[8%] -left-3 w-52 rounded-2xl border border-border bg-surface/95 p-3.5 shadow-[var(--shadow-lift)] backdrop-blur sm:-left-8">
-        <p className="text-xs text-muted-foreground">Min avgift · September</p>
-        <p className="mt-0.5 text-lg font-semibold tnum">5 420 kr</p>
-        <div className="mt-2">
-          <StatusPill tone="success">Betald</StatusPill>
-        </div>
-      </div>
-      <div
-        className="animate-float absolute -right-3 bottom-[30%] w-56 rounded-2xl border border-border bg-surface/95 p-3.5 shadow-[var(--shadow-lift)] backdrop-blur sm:-right-6"
-        style={{ animationDelay: "1.5s" }}
-      >
-        <p className="text-xs text-muted-foreground">Min felanmälan</p>
-        <p className="mt-0.5 text-sm font-medium">Element i sovrum</p>
-        <div className="mt-2 flex items-center gap-2">
-          <StatusPill tone="warning">Pågående</StatusPill>
-          <span className="text-xs text-muted-foreground">idag 14:32</span>
-        </div>
-      </div>
-      <div
-        className="animate-float absolute bottom-[4%] left-[12%] flex items-center gap-3 rounded-2xl border border-border bg-surface/95 px-3.5 py-3 shadow-[var(--shadow-lift)] backdrop-blur"
-        style={{ animationDelay: "3s" }}
-      >
-        <span className="grid size-9 place-items-center rounded-xl bg-success-soft text-success">
-          <KeyRound className="size-4" />
-        </span>
-        <span>
-          <span className="block text-sm font-medium">Porten är upplåst</span>
-          <span className="block text-xs text-muted-foreground">Storgatan 12 · NFC</span>
-        </span>
-      </div>
-    </div>
-  );
-}
-
 function Landing() {
   const stats = Route.useLoaderData();
   return (
@@ -257,7 +220,7 @@ function Landing() {
               </figure>
             ) : null}
           </div>
-          <HeroVisual />
+          <HeroAnimation className="mx-auto lg:mr-0" />
         </div>
       </section>
 
