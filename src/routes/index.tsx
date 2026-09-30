@@ -10,7 +10,6 @@ import {
   Users,
   ShieldCheck,
   KeyRound,
-  Check,
   X,
 } from "lucide-react";
 
@@ -20,7 +19,6 @@ import { StatusPill } from "@/components/status-badge";
 import { SiteHeader } from "@/components/site-header";
 import { AudienceArt, KeyScene, Skyline } from "@/components/illustrations";
 import { HeroAnimation } from "@/components/hero-animation";
-import { getPublicStats, type PublicStats } from "@/lib/public.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -39,27 +37,8 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
-  loader: () => getPublicStats().catch((): PublicStats | null => null),
-  staleTime: 5 * 60_000,
   component: Landing,
 });
-
-const nf = (digits: number) =>
-  new Intl.NumberFormat("sv-SE", { minimumFractionDigits: digits, maximumFractionDigits: digits });
-
-/**
- * Nyckeltal ur demoföreningen (inte riktiga kunder). Visas bara om de gick
- * att räkna fram, och alltid märkta som exempeldata.
- */
-function statRows(stats: PublicStats | null): [string, string][] {
-  const rows: [string, string][] = [];
-  if (stats?.units) rows.push([nf(0).format(stats.units), "lägenheter"]);
-  if (stats?.avgResolutionDays != null)
-    rows.push([`${nf(1).format(stats.avgResolutionDays)} dagar`, "i snitt till löst ärende"]);
-  if (stats?.paidShare != null)
-    rows.push([`${nf(1).format(stats.paidShare)} %`, "betalda avgifter senaste månaden"]);
-  return rows;
-}
 
 const audiences = [
   {
@@ -82,73 +61,45 @@ const audiences = [
   },
 ];
 
-/** Varje funktion beskrivs som problem, lösning och nytta för styrelsen. */
+/** Hur det ofta ser ut idag – i samma ordning som funktionerna nedan. */
+const before = [
+  "Felanmälningar kommer via mejl, sms och samtal till olika personer",
+  "Bokningslistor på papper som försvinner eller skrivs över",
+  "Information på anslagstavlan når inte alla",
+  "Samma frågor kommer om och om igen, och kunskapen försvinner när styrelsen byts ut",
+  "Avgifter följs upp i kalkylark som bara en person hittar",
+];
+
+/** Vad plattformen gör åt vart och ett av problemen ovan. */
 const features = [
   {
     icon: Wrench,
     title: "Felanmälan",
-    problem: "Felanmälningar kommer via mejl, lappar och telefonsamtal till olika personer.",
-    solution: "Alla felanmälningar samlas på ett ställe, med bilder, status och ansvarig.",
-    benefit: "Styrelsen får överblick och kan följa varje ärende från anmälan till åtgärd.",
+    body: "Alla ärenden på ett ställe, med bilder, status och ansvarig.",
   },
   {
     icon: CalendarCheck,
     title: "Bokningar",
-    problem: "Bokningslistor på papper försvinner, skrivs över eller leder till dubbelbokningar.",
-    solution: "Tvättstuga, bastu, gästrum och lokaler bokas i appen enligt föreningens regler.",
-    benefit: "Ingen i styrelsen behöver hålla ordning på listor eller reda ut krockar.",
+    body: "Tvättstuga, bastu och lokaler bokas i appen enligt föreningens regler.",
   },
   {
     icon: Megaphone,
     title: "Kommunikation",
-    problem: "Information på anslagstavlan och i mejl når inte alla boende.",
-    solution:
-      "Ett meddelande når alla, ett hus eller en lägenhet – i appen och via e-post eller sms.",
-    benefit: "Ett utskick räcker, och styrelsen ser att informationen har gått ut.",
+    body: "Nå alla, ett hus eller en lägenhet – i appen, via e-post eller sms.",
   },
   {
     icon: FolderOpen,
-    title: "Dokument och information",
-    problem: "Samma frågor om regler, tvättider och stadgar kommer till styrelsen gång på gång.",
-    solution: "Stadgar, trivselregler, protokoll och nyheter finns samlade i appen.",
-    benefit: "Boende hittar svaren själva, och styrelsen får färre enkla frågor.",
+    title: "Dokument och historik",
+    body: "Stadgar, regler och protokoll samlade, och kvar när styrelsen byts ut.",
   },
   {
     icon: Wallet,
     title: "Ekonomi",
-    problem: "Avgifter följs upp i kalkylark och bankutdrag som ingen annan hittar.",
-    solution: "Avier med OCR-nummer, förfallodatum och betalstatus på ett ställe.",
-    benefit: "Styrelsen ser direkt vad som är betalt och kan skicka påminnelser därifrån.",
-  },
-  {
-    icon: Sparkles,
-    title: "AI-assistent",
-    problem: "Det är lätt att missa ärenden som blivit liggande eller möten som närmar sig.",
-    solution: "Assistenten sammanställer varje dag det som behöver styrelsens uppmärksamhet.",
-    benefit: "Styrelsen ser snabbt vad som behöver göras, utan att gå igenom allt själv.",
+    body: "Avier med OCR-nummer, betalstatus och påminnelser på ett ställe.",
   },
 ];
 
-/** Jämförelsen mellan hur det ofta ser ut idag och med plattformen. */
-const before = [
-  "Felanmälningar kommer via mejl, sms och samtal till olika personer",
-  "Bokningslistor på papper som försvinner eller skrivs över",
-  "Samma frågor om tvättider, avgifter och regler kommer om och om igen",
-  "Information på anslagstavlan når inte alla",
-  "Kunskapen försvinner när ledamöter lämnar styrelsen",
-];
-
-const after = [
-  "Alla ärenden samlas i en lista med status och ansvarig",
-  "Boende bokar själva, enligt föreningens regler",
-  "Svaren finns i appen – boende hittar dem utan att kontakta styrelsen",
-  "Meddelanden når rätt boende i appen, via e-post eller sms",
-  "Historik och dokument finns kvar när styrelsen byts ut",
-];
-
-/** Kvarteret med svävande kort ur appen. */
 function Landing() {
-  const stats = Route.useLoaderData();
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
@@ -160,87 +111,40 @@ function Landing() {
         />
         <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-5 pt-16 pb-20 sm:pt-24 lg:grid-cols-[1.05fr_1fr]">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted-foreground">
-              <Sparkles className="size-3.5" />
-              För bostadsrättsföreningar, hyresvärdar och förvaltare
-            </span>
-            <h1 className="mt-6 font-display text-5xl leading-[1.05] sm:text-6xl">
+            <h1 className="font-display text-5xl leading-[1.05] sm:text-6xl">
               Allt som rör ditt boende.
               <br />
               På ett ställe.
             </h1>
-            <p className="mt-6 text-xl font-medium sm:text-2xl">
-              Mindre administration. Färre mejltrådar. Bättre koll.
-            </p>
-            <p className="mt-4 max-w-xl text-lg text-muted-foreground">
-              Felanmälningar, bokningar, information och kommunikation med de boende samlas i ett
-              system. Styrelsen får överblick, och de boende hittar svaren själva i stället för att
-              höra av sig om enkla frågor.
+            <p className="mt-6 max-w-xl text-lg text-muted-foreground sm:text-xl">
+              Felanmälan, bokningar, information och kommunikation för bostadsrättsföreningar och
+              hyresvärdar – samlat i ett system. Mindre administration, bättre koll.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button size="lg" asChild>
                 <Link to="/boka-demo">Boka en demo</Link>
               </Button>
               <Button size="lg" variant="secondary" asChild>
-                <a href="#sa-fungerar-det">Se hur det fungerar</a>
+                <Link to="/auth" hash="demo">
+                  Prova demomiljön
+                </Link>
               </Button>
             </div>
-            <p className="mt-4 text-sm text-muted-foreground">
-              Eller{" "}
-              <Link
-                to="/auth"
-                hash="demo"
-                className="font-medium text-foreground underline underline-offset-4"
-              >
-                prova demomiljön direkt
-              </Link>{" "}
-              – ingen registrering behövs.
-            </p>
-            {statRows(stats).length > 0 ? (
-              <figure className="mt-12 max-w-lg border-t border-border pt-5">
-                <figcaption className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span className="rounded-full border border-border bg-surface px-2 py-0.5 font-medium">
-                    Exempeldata
-                  </span>
-                  Så kan översikten se ut i din förening
-                </figcaption>
-                <dl className="mt-4 grid grid-cols-3 gap-6">
-                  {statRows(stats).map(([value, label]) => (
-                    <div key={label}>
-                      <dt className="text-lg font-semibold whitespace-nowrap tnum sm:text-xl">
-                        {value}
-                      </dt>
-                      <dd className="mt-1 text-xs text-muted-foreground">{label}</dd>
-                    </div>
-                  ))}
-                </dl>
-                <p className="mt-3 text-xs text-muted-foreground/80">
-                  Siffrorna kommer från vår demoförening, inte från riktiga kunder.
-                </p>
-              </figure>
-            ) : null}
           </div>
           <HeroAnimation className="mx-auto lg:mr-0" />
         </div>
       </section>
 
-      <section id="sa-fungerar-det" className="scroll-mt-28 mx-auto max-w-6xl px-5 pb-20">
-        <div className="max-w-2xl">
-          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Från mejltrådar och lappar till ett gemensamt system
-          </h2>
-          <p className="mt-4 text-muted-foreground">
-            I många föreningar ligger felanmälningarna i någons inkorg, bokningslistan hänger i
-            tvättstugan och informationen finns i ett gammalt nyhetsbrev. Boendeplattformen samlar
-            allt, så att både styrelse och boende vet var de ska leta.
-          </p>
-        </div>
+      <section className="mx-auto max-w-6xl px-5 pb-20">
+        <h2 className="max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
+          Från mejltrådar och lappar till ett gemensamt system
+        </h2>
         <div className="mt-10 grid gap-5 md:grid-cols-2">
           <div className="card-surface p-6">
             <h3 className="text-base font-semibold text-muted-foreground">
               Så ser det ofta ut idag
             </h3>
-            <ul className="mt-4 space-y-3 text-sm">
+            <ul className="mt-5 space-y-4 text-sm">
               {before.map((t) => (
                 <li key={t} className="flex items-start gap-3 text-muted-foreground">
                   <X className="mt-0.5 size-4 shrink-0" />
@@ -251,11 +155,13 @@ function Landing() {
           </div>
           <div className="card-surface p-6">
             <h3 className="text-base font-semibold">Med Boendeplattformen</h3>
-            <ul className="mt-4 space-y-3 text-sm">
-              {after.map((t) => (
-                <li key={t} className="flex items-start gap-3">
-                  <Check className="mt-0.5 size-4 shrink-0 text-success" />
-                  {t}
+            <ul className="mt-5 space-y-4 text-sm">
+              {features.map((f) => (
+                <li key={f.title} className="flex items-start gap-3">
+                  <f.icon className="mt-0.5 size-4 shrink-0 text-primary" />
+                  <span>
+                    <span className="font-medium">{f.title}.</span> {f.body}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -285,41 +191,7 @@ function Landing() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-5 py-20">
-        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          Det här får föreningen
-        </h2>
-        <p className="mt-4 max-w-2xl text-muted-foreground">
-          Varje del av plattformen tar bort ett konkret moment i styrelsearbetet – så att mindre tid
-          går till administration och mer till föreningen.
-        </p>
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((f) => (
-            <div key={f.title} className="card-surface p-6">
-              <h3 className="flex items-center gap-2 text-base font-semibold">
-                <f.icon className="size-5 text-primary" />
-                {f.title}
-              </h3>
-              <dl className="mt-4 space-y-3 text-sm leading-relaxed">
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">Problem</dt>
-                  <dd className="mt-0.5 text-muted-foreground">{f.problem}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-primary">Lösning</dt>
-                  <dd className="mt-0.5">{f.solution}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-success">Nytta</dt>
-                  <dd className="mt-0.5 font-medium">{f.benefit}</dd>
-                </div>
-              </dl>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto grid max-w-6xl gap-12 px-5 pb-20 lg:grid-cols-2 lg:items-center">
+      <section className="mx-auto grid max-w-6xl gap-12 px-5 py-20 lg:grid-cols-2 lg:items-center">
         <KeyScene className="order-last lg:order-first" />
         <div>
           <span className="inline-flex items-center gap-2 rounded-full border border-glow/40 bg-glow-soft px-3 py-1 text-xs text-foreground">
