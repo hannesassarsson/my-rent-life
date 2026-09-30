@@ -58,7 +58,7 @@ export async function loadMe(supabase: Db, userId: string) {
     supabase
       .from("profiles")
       .select(
-        "id, full_name, email, phone, organization_id, organizations(id, name, org_type, bankgiro, contact_email, contact_phone, emergency_phone, address, about, welcome_message, subscriptions(plan, status, trial_ends_at, past_due_since, is_demo, invoice_billing, addons))",
+        "id, full_name, email, phone, organization_id, organizations(id, name, org_type, bankgiro, contact_email, contact_phone, emergency_phone, address, about, welcome_message, brand_mode, brand_name, brand_logo_path, brand_color, subscriptions(plan, status, trial_ends_at, past_due_since, is_demo, invoice_billing, addons))",
       )
       .eq("id", userId)
       .maybeSingle(),
@@ -85,6 +85,12 @@ export async function loadMe(supabase: Db, userId: string) {
         address: orgRow.address,
         about: orgRow.about,
         welcome_message: orgRow.welcome_message,
+        brand: {
+          mode: orgRow.brand_mode as BrandMode,
+          name: orgRow.brand_name,
+          logoPath: orgRow.brand_logo_path,
+          color: orgRow.brand_color,
+        },
       }
     : null;
   const profile = profileRow
@@ -1997,6 +2003,43 @@ export const updateWelcomeMessage = createServerFn({ method: "POST" })
     const { error } = await supabase
       .from("organizations")
       .update({ welcome_message: data.message || null })
+      .eq("id", orgId);
+    if (error) throw dbError(error);
+    return { ok: true };
+  });
+
+export type BrandMode = "platform" | "logo" | "text";
+
+export const updateBranding = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      mode: z.enum(["platform", "logo", "text"]),
+      name: z.string().trim().max(60, "Namnet får vara högst 60 tecken"),
+      logoPath: z
+        .string()
+        .regex(/^[0-9a-f-]{36}\/logo-[0-9a-f-]{36}\.(png|jpg|webp)$/, "Ogiltig logga")
+        .nullable(),
+      color: z
+        .string()
+        .regex(/^#[0-9a-f]{6}$/, "Välj en färg")
+        .nullable(),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "settings.edit");
+    if (data.logoPath && !data.logoPath.startsWith(`${orgId}/`)) throw new Error("Ogiltig logga");
+    if (data.mode === "logo" && !data.logoPath) throw new Error("Ladda upp en logga först");
+    if (data.mode === "text" && !data.name) throw new Error("Skriv namnet som ska visas");
+    const { error } = await supabase
+      .from("organizations")
+      .update({
+        brand_mode: data.mode,
+        brand_name: data.name || null,
+        brand_logo_path: data.logoPath,
+        brand_color: data.color,
+      })
       .eq("id", orgId);
     if (error) throw dbError(error);
     return { ok: true };

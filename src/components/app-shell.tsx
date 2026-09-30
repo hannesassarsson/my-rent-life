@@ -15,6 +15,8 @@ import { ROLE_LABELS, type Permission } from "@/lib/permissions";
 import { orgProfileFor, type OrgTerm } from "@/lib/org-profile";
 import { PLANS, type Feature } from "@/lib/plans";
 import { Logo } from "@/components/brand";
+import { OrgBrandMark, PoweredBy } from "@/components/org-brand";
+import { isOwnBrand, useBrandTheme } from "@/lib/org-brand";
 
 export { Logo };
 
@@ -222,6 +224,16 @@ export function AppShell({
   const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
+  const brand = me?.organization?.brand;
+  const ownBrand = isOwnBrand(brand);
+  useBrandTheme(brand);
+  // Visa ingen logga förrän vi vet vilken, så att en förenings egen logga
+  // inte föregås av Boendeplattformens.
+  const brandMark = me ? (
+    <OrgBrandMark brand={brand} orgName={me.organization?.name} />
+  ) : (
+    <span className="block h-9 w-32" aria-hidden="true" />
+  );
 
   const permissions: readonly string[] = me?.permissions ?? [];
   const planLocked: readonly string[] = me?.planLocked ?? [];
@@ -295,8 +307,8 @@ export function AppShell({
   const sidebar = (
     <div className="flex h-full flex-col gap-5 px-4 py-5">
       <div className="flex items-center justify-between">
-        <Link to="/" className="px-1">
-          <Logo />
+        <Link to={ownBrand ? AREA_HOME[area] : "/"} className="min-w-0 px-1">
+          {brandMark}
         </Link>
         <NotificationBell className="hidden lg:inline-flex" />
       </div>
@@ -344,6 +356,7 @@ export function AppShell({
           <LogOut className="size-5 shrink-0" />
           Logga ut
         </button>
+        {ownBrand ? <PoweredBy className="px-3 pt-3" /> : null}
       </div>
     </div>
   );
@@ -367,7 +380,7 @@ export function AppShell({
             {sidebar}
           </SheetContent>
         </Sheet>
-        <Logo />
+        <span className="min-w-0">{brandMark}</span>
         <NotificationBell />
       </header>
 

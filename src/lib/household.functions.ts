@@ -446,6 +446,12 @@ export type InvitationPreview = {
   invitee_email?: string | null;
   expires_at?: string;
   is_demo?: boolean;
+  brand?: {
+    mode: string;
+    name: string | null;
+    logo_path: string | null;
+    color: string | null;
+  };
 };
 
 export type AcceptedInvitation = {

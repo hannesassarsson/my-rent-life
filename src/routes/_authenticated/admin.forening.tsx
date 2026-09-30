@@ -8,6 +8,7 @@ import { getAdminSettings, updateOrganization, updateWelcomeMessage } from "@/li
 import { errorMessage } from "@/lib/errors";
 import { WELCOME_EXAMPLE, WELCOME_VARIABLES, renderWelcome, type WelcomeVars } from "@/lib/welcome";
 import { LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
+import { BrandingEditor } from "@/components/branding-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,7 +52,7 @@ function OrganizationSettings() {
     <div>
       <PageHeader
         title="Föreningsinställningar"
-        subtitle="Uppgifter som de boende ser: namn, kontaktvägar och välkomstmeddelandet till nya boende."
+        subtitle="Uppgifter som de boende ser: namn, kontaktvägar, välkomstmeddelandet och ert varumärke."
       />
       {isPending || !data?.organization ? (
         <LoadingBlock rows={5} />
@@ -62,6 +63,7 @@ function OrganizationSettings() {
             orgName={data.organization.name}
             initial={data.organization.welcome_message ?? ""}
           />
+          <BrandingEditor org={data.organization} />
         </div>
       )}
     </div>

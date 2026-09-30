@@ -948,6 +948,10 @@ export type Database = {
           address: string | null;
           about: string | null;
           welcome_message: string | null;
+          brand_mode: string;
+          brand_name: string | null;
+          brand_logo_path: string | null;
+          brand_color: string | null;
           org_number: string | null;
           sms_enabled: boolean;
           bankgiro: string | null;
@@ -964,6 +968,10 @@ export type Database = {
           address?: string | null;
           about?: string | null;
           welcome_message?: string | null;
+          brand_mode?: string;
+          brand_name?: string | null;
+          brand_logo_path?: string | null;
+          brand_color?: string | null;
           org_number?: string | null;
           sms_enabled?: boolean;
           bankgiro?: string | null;
@@ -980,6 +988,10 @@ export type Database = {
           address?: string | null;
           about?: string | null;
           welcome_message?: string | null;
+          brand_mode?: string;
+          brand_name?: string | null;
+          brand_logo_path?: string | null;
+          brand_color?: string | null;
           org_number?: string | null;
           sms_enabled?: boolean;
           bankgiro?: string | null;

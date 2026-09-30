@@ -11,11 +11,14 @@ import {
   getInvitation,
   registerWithInvitation,
   type AcceptedInvitation,
+  type InvitationPreview,
 } from "@/lib/household.functions";
 import { errorMessage } from "@/lib/errors";
 import { dateLong } from "@/lib/format";
 import { renderWelcome } from "@/lib/welcome";
 import { Logo } from "@/components/app-shell";
+import { OrgBrandMark, PoweredBy } from "@/components/org-brand";
+import { isOwnBrand, useBrandTheme, type OrgBrand } from "@/lib/org-brand";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,17 +30,44 @@ export const Route = createFileRoute("/invite/$token")({
   component: InvitePage,
 });
 
-function Shell({ children }: { children: React.ReactNode }) {
+/** Sidan visas i föreningens varumärke när den har ett eget. */
+function Shell({
+  children,
+  brand,
+  orgName,
+}: {
+  children: React.ReactNode;
+  brand?: OrgBrand | null | undefined;
+  orgName?: string | undefined;
+}) {
+  useBrandTheme(brand);
+  const own = isOwnBrand(brand);
   return (
     <div className="min-h-screen bg-background px-4 py-10 sm:py-16">
       <div className="mx-auto w-full max-w-lg">
-        <Link to="/" aria-label="Boendeplattformen – till startsidan">
-          <Logo />
-        </Link>
+        {own ? (
+          <OrgBrandMark brand={brand} orgName={orgName} />
+        ) : (
+          <Link to="/" aria-label="Boendeplattformen – till startsidan">
+            <Logo />
+          </Link>
+        )}
         <div className="mt-8">{children}</div>
+        {own ? <PoweredBy className="mt-12" /> : null}
       </div>
     </div>
   );
+}
+
+function brandOf(invite: InvitationPreview | undefined): OrgBrand | null {
+  const b = invite?.brand;
+  if (!b) return null;
+  return {
+    mode: b.mode as OrgBrand["mode"],
+    name: b.name,
+    logoPath: b.logo_path,
+    color: b.color,
+  };
 }
 
 function InvitePage() {
@@ -59,11 +89,14 @@ function InvitePage() {
     });
   }, []);
 
-  if (accepted) return <Welcome accepted={accepted} />;
+  const brand = brandOf(invite);
+  const orgName = invite?.organization_name;
+
+  if (accepted) return <Welcome accepted={accepted} brand={brand} />;
 
   if (isPending || session === undefined) {
     return (
-      <Shell>
+      <Shell brand={brand} orgName={orgName}>
         <p className="text-base text-muted-foreground" role="status">
           Hämtar inbjudan…
         </p>
@@ -93,7 +126,7 @@ function InvitePage() {
                 body: "Kontrollera att hela länken kom med när du kopierade den, eller be om en ny.",
               };
     return (
-      <Shell>
+      <Shell brand={brand} orgName={orgName}>
         <h1 className="text-2xl font-semibold tracking-tight">{text.title}</h1>
         <p className="mt-3 text-base text-muted-foreground">{text.body}</p>
         <Button asChild size="lg" className="mt-8">
@@ -104,7 +137,7 @@ function InvitePage() {
   }
 
   return (
-    <Shell>
+    <Shell brand={brand} orgName={orgName}>
       <p className="text-base text-muted-foreground">Du har blivit inbjuden till</p>
       <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
         {invite.organization_name}
@@ -330,7 +363,7 @@ function AcceptAsLoggedIn({
   );
 }
 
-function Welcome({ accepted }: { accepted: AcceptedInvitation }) {
+function Welcome({ accepted, brand }: { accepted: AcceptedInvitation; brand: OrgBrand | null }) {
   const navigate = useNavigate();
   const welcome = renderWelcome(accepted.welcome_message, {
     föreningsnamn: accepted.organization_name,
@@ -339,7 +372,7 @@ function Welcome({ accepted }: { accepted: AcceptedInvitation }) {
     boendes_namn: accepted.resident_name,
   });
   return (
-    <Shell>
+    <Shell brand={brand} orgName={accepted.organization_name}>
       <span className="grid size-14 place-items-center rounded-2xl bg-success-soft text-success">
         <PartyPopper className="size-7" aria-hidden />
       </span>
