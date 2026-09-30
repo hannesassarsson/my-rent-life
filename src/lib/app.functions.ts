@@ -51,17 +51,34 @@ export type RequestPriority = z.infer<typeof requestPriority>;
 export type AudienceScope = z.infer<typeof audienceScope>;
 export type ProjectStatus = z.infer<typeof projectStatus>;
 
+/**
+ * Profilen med organisationen. Om databasen ännu saknar kolumnerna för eget
+ * varumärke (migrationen inte körd) hämtas profilen utan dem, så att
+ * inloggningen fungerar oavsett i vilken ordning kod och databas uppdateras.
+ */
+async function loadProfile(supabase: Db, userId: string) {
+  const withBrand = await supabase
+    .from("profiles")
+    .select(
+      "id, full_name, email, phone, organization_id, organizations(id, name, org_type, bankgiro, contact_email, contact_phone, emergency_phone, address, about, welcome_message, brand_mode, brand_name, brand_logo_path, brand_color, subscriptions(plan, status, trial_ends_at, past_due_since, is_demo, invoice_billing, addons))",
+    )
+    .eq("id", userId)
+    .maybeSingle();
+  if (!withBrand.error || !/brand_/.test(withBrand.error.message)) return withBrand;
+  return (await supabase
+    .from("profiles")
+    .select(
+      "id, full_name, email, phone, organization_id, organizations(id, name, org_type, bankgiro, contact_email, contact_phone, emergency_phone, address, about, welcome_message, subscriptions(plan, status, trial_ends_at, past_due_since, is_demo, invoice_billing, addons))",
+    )
+    .eq("id", userId)
+    .maybeSingle()) as unknown as typeof withBrand;
+}
+
 export async function loadMe(supabase: Db, userId: string) {
   // Tre oberoende frågor i stället för fyra i följd; organisationen följer
   // med profilen.
   const [{ data: profileRow }, { data: roleRows }, { data: residency }] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select(
-        "id, full_name, email, phone, organization_id, organizations(id, name, org_type, bankgiro, contact_email, contact_phone, emergency_phone, address, about, welcome_message, brand_mode, brand_name, brand_logo_path, brand_color, subscriptions(plan, status, trial_ends_at, past_due_since, is_demo, invoice_billing, addons))",
-      )
-      .eq("id", userId)
-      .maybeSingle(),
+    loadProfile(supabase, userId),
     supabase.from("user_roles").select("role").eq("user_id", userId),
     supabase
       .from("residencies")
@@ -86,7 +103,7 @@ export async function loadMe(supabase: Db, userId: string) {
         about: orgRow.about,
         welcome_message: orgRow.welcome_message,
         brand: {
-          mode: orgRow.brand_mode as BrandMode,
+          mode: (orgRow.brand_mode ?? "platform") as BrandMode,
           name: orgRow.brand_name,
           logoPath: orgRow.brand_logo_path,
           color: orgRow.brand_color,
