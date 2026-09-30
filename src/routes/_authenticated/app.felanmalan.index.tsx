@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { createRequest, getMyRequests } from "@/lib/app.functions";
+import { addRequestAttachments, createRequest, getMyRequests } from "@/lib/app.functions";
+import { IMAGE_TYPES, attachImages, checkFile } from "@/lib/files";
 import { EmptyState, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
-import { PriorityBadge, RequestStatusBadge } from "@/components/status-badge";
+import { PriorityBadge, ResidentRequestStatus } from "@/components/status-badge";
 import { categoryLabels, dateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/app/felanmalan/")({
   head: () => ({
@@ -44,16 +46,22 @@ const rooms = ["Kök", "Badrum", "Vardagsrum", "Sovrum", "Hall", "Balkong", "Fö
 function MyRequests() {
   const fn = useServerFn(getMyRequests);
   const create = useServerFn(createRequest);
+  const attach = useServerFn(addRequestAttachments);
   const qc = useQueryClient();
   const { data, isPending } = useQuery({ queryKey: ["my-requests"], queryFn: () => fn() });
 
   const [open, setOpen] = useState(false);
+  // Länkar som "Gör en felanmälan" på startsidan öppnar formuläret direkt.
+  useEffect(() => {
+    if (window.location.hash === "#ny") setOpen(true);
+  }, []);
   const [step, setStep] = useState(1);
   const [category, setCategory] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [room, setRoom] = useState("");
   const [isUrgent, setIsUrgent] = useState(false);
+  const [images, setImages] = useState<File[]>([]);
 
   function reset() {
     setStep(1);
@@ -62,40 +70,64 @@ function MyRequests() {
     setDescription("");
     setRoom("");
     setIsUrgent(false);
+    setImages([]);
   }
 
   const mutation = useMutation({
-    mutationFn: () => create({ data: { category, title, description, room, isUrgent } }),
+    mutationFn: async () => {
+      const created = await create({ data: { category, title, description, room, isUrgent } });
+      if (images.length > 0) {
+        try {
+          await attachImages(attach, created, images);
+        } catch (e) {
+          toast.error(errorMessage(e, "Bilderna kunde inte laddas upp"));
+        }
+      }
+      return created;
+    },
     onSuccess: (created) => {
-      toast.success(`Felanmälan skickad – ärende #${created.ticket_number}`);
+      toast.success("Din felanmälan är skickad", {
+        description: `Ärendenummer ${created.ticket_number}. Du får en notis när något händer i ärendet.`,
+      });
       void qc.invalidateQueries({ queryKey: ["my-requests"] });
       void qc.invalidateQueries({ queryKey: ["resident-dashboard"] });
       setOpen(false);
       reset();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   return (
     <div>
       <PageHeader
         title="Felanmälan"
-        subtitle="Anmäl fel i din bostad eller i gemensamma utrymmen"
+        subtitle="Anmäl något som är trasigt i din lägenhet eller i huset"
         action={
           <Dialog
             open={open}
             onOpenChange={(v) => {
               setOpen(v);
-              if (!v) reset();
+              if (!v) {
+                reset();
+                if (window.location.hash === "#ny")
+                  history.replaceState(null, "", location.pathname);
+              }
             }}
           >
             <DialogTrigger asChild>
-              <Button>Ny felanmälan</Button>
+              <Button size="lg">Gör en felanmälan</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-lg">
               <DialogHeader>
-                <DialogTitle>Ny felanmälan</DialogTitle>
-                <DialogDescription>Steg {step} av 3</DialogDescription>
+                <DialogTitle>Gör en felanmälan</DialogTitle>
+                <DialogDescription>
+                  Steg {step} av 3 –{" "}
+                  {step === 1
+                    ? "vad gäller det?"
+                    : step === 2
+                      ? "beskriv felet"
+                      : "kontrollera och skicka"}
+                </DialogDescription>
               </DialogHeader>
 
               {step === 1 ? (
@@ -109,12 +141,12 @@ function MyRequests() {
                         setStep(2);
                       }}
                       className={cn(
-                        "rounded-xl border border-border p-4 text-center transition hover:border-primary hover:bg-accent",
+                        "min-h-20 rounded-xl border border-border p-3 text-center transition hover:border-primary hover:bg-accent",
                         category === c.value && "border-primary bg-accent",
                       )}
                     >
                       <span className="text-xl">{c.icon}</span>
-                      <span className="mt-1.5 block text-xs font-medium">{c.value}</span>
+                      <span className="mt-1.5 block text-sm font-medium">{c.value}</span>
                     </button>
                   ))}
                 </div>
@@ -123,7 +155,7 @@ function MyRequests() {
               {step === 2 ? (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="title">Vad gäller det?</Label>
+                    <Label htmlFor="title">Rubrik – vad är trasigt?</Label>
                     <Input
                       id="title"
                       value={title}
@@ -132,7 +164,7 @@ function MyRequests() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="description">Beskriv felet</Label>
+                    <Label htmlFor="description">Beskriv felet (valfritt)</Label>
                     <Textarea
                       id="description"
                       rows={4}
@@ -142,15 +174,16 @@ function MyRequests() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Var i bostaden?</Label>
+                    <Label>Var i lägenheten? (valfritt)</Label>
                     <div className="flex flex-wrap gap-2">
                       {rooms.map((r) => (
                         <button
                           key={r}
                           type="button"
-                          onClick={() => setRoom(r)}
+                          onClick={() => setRoom(room === r ? "" : r)}
+                          aria-pressed={room === r}
                           className={cn(
-                            "rounded-full border border-border px-3 py-1.5 text-xs font-medium transition hover:border-primary",
+                            "min-h-10 rounded-full border border-border px-4 py-2 text-sm font-medium transition hover:border-primary",
                             room === r && "border-primary bg-accent",
                           )}
                         >
@@ -159,6 +192,28 @@ function MyRequests() {
                       ))}
                     </div>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="images">Bifoga bilder (valfritt)</Label>
+                    <Input
+                      id="images"
+                      type="file"
+                      accept={IMAGE_TYPES.join(",")}
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? []);
+                        try {
+                          files.forEach((f) => checkFile(f, IMAGE_TYPES));
+                          setImages(files.slice(0, 5));
+                        } catch (err) {
+                          toast.error(errorMessage(err, "Ogiltig fil"));
+                          e.target.value = "";
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Högst 5 bilder, 10 MB per bild. En bild säger ofta mer än en beskrivning.
+                    </p>
+                  </div>
                 </div>
               ) : null}
 
@@ -166,22 +221,32 @@ function MyRequests() {
                 <div className="space-y-4">
                   <div className="rounded-xl border border-border p-4 text-sm">
                     <p className="font-medium">
-                      {categoryLabels.find((c) => c.value === category)?.icon} {title || "(ingen titel)"}
+                      {categoryLabels.find((c) => c.value === category)?.icon}{" "}
+                      {title || "(ingen titel)"}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {category}
                       {room ? ` · ${room}` : ""}
                     </p>
                     <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+                    {images.length > 0 ? (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {images.length} {images.length === 1 ? "bild" : "bilder"} bifogas
+                      </p>
+                    ) : null}
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-border p-4">
                     <div>
-                      <p className="text-sm font-medium">Akut ärende</p>
-                      <p className="text-xs text-muted-foreground">
-                        Vattenläckage, ingen värme eller något som riskerar skada.
+                      <p className="text-sm font-medium">Är det akut?</p>
+                      <p className="text-sm text-muted-foreground">
+                        Till exempel vattenläcka, ingen värme eller något som kan orsaka skada.
                       </p>
                     </div>
-                    <Switch checked={isUrgent} onCheckedChange={setIsUrgent} />
+                    <Switch
+                      checked={isUrgent}
+                      onCheckedChange={setIsUrgent}
+                      aria-label="Markera som akut"
+                    />
                   </div>
                 </div>
               ) : null}
@@ -194,7 +259,7 @@ function MyRequests() {
                 ) : null}
                 {step === 2 ? (
                   <Button disabled={!title.trim()} onClick={() => setStep(3)}>
-                    Fortsätt
+                    Nästa: kontrollera
                   </Button>
                 ) : null}
                 {step === 3 ? (
@@ -212,7 +277,10 @@ function MyRequests() {
         {isPending ? (
           <LoadingBlock />
         ) : !data || data.length === 0 ? (
-          <EmptyState title="Inga felanmälningar" description="Allt lugnt i din bostad." />
+          <EmptyState
+            title="Du har inga felanmälningar"
+            description="När du anmäler ett fel kan du följa ärendet här."
+          />
         ) : (
           <ul className="space-y-3">
             {data.map((r) => (
@@ -224,15 +292,15 @@ function MyRequests() {
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium">{r.title}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Ärende #{r.ticket_number} · {r.category}
+                      <p className="text-base font-medium">{r.title}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Ärende {r.ticket_number} · {r.category}
                         {r.room ? ` · ${r.room}` : ""} · uppdaterad {dateTime(r.updated_at)}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <PriorityBadge priority={r.priority} />
-                      <RequestStatusBadge status={r.status} />
+                      <ResidentRequestStatus status={r.status} />
                     </div>
                   </div>
                 </Link>

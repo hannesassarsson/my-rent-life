@@ -1,43 +1,140 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { homeFor, permissionsFor, type Permission } from "@/lib/permissions";
+import { accessFor, applyPlan, type Feature } from "@/lib/plans";
+import {
+  inspectionKindLabels,
+  inspectionResultLabels,
+  priorityLabels,
+  requestStatusLabels,
+} from "@/lib/format";
+import { deliverQueued, deliverQueuedOccasionally } from "@/lib/delivery.server";
+import { dbError } from "@/lib/errors";
 
 type Db = SupabaseClient<Database>;
 
 const STAFF_ROLES = ["super_admin", "org_admin", "property_manager", "board_member", "staff"];
 
-async function loadMe(supabase: Db, userId: string) {
-  const { data: profile } = await supabase
+/* ----------------------------- VALIDERING ----------------------------- */
+
+const id = z.string().uuid();
+
+/** "07:30:00" → 450. Stängning vid midnatt ("00:00") räknas som 24:00. */
+function minutesOf(time: string, closing = false): number {
+  const [h = 0, m = 0] = time.split(":").map(Number);
+  const minutes = h * 60 + m;
+  return closing && minutes === 0 ? 24 * 60 : minutes;
+}
+const shortText = z.string().trim().max(200);
+const longText = z.string().max(10_000);
+const requestStatus = z.enum([
+  "new",
+  "received",
+  "assigned",
+  "booked",
+  "in_progress",
+  "resolved",
+  "closed",
+]);
+const requestPriority = z.enum(["low", "normal", "high", "urgent"]);
+const audienceScope = z.enum(["organization", "property", "building"]);
+const projectStatus = z.enum(["planned", "in_progress", "done"]);
+const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, "Ogiltig tid");
+
+const byIdSchema = z.object({ id });
+
+export type RequestStatus = z.infer<typeof requestStatus>;
+export type RequestPriority = z.infer<typeof requestPriority>;
+export type AudienceScope = z.infer<typeof audienceScope>;
+export type ProjectStatus = z.infer<typeof projectStatus>;
+
+/**
+ * Profilen med organisationen. Om databasen ännu saknar kolumnerna för eget
+ * varumärke (migrationen inte körd) hämtas profilen utan dem, så att
+ * inloggningen fungerar oavsett i vilken ordning kod och databas uppdateras.
+ */
+async function loadProfile(supabase: Db, userId: string) {
+  const withBrand = await supabase
     .from("profiles")
-    .select("id, full_name, email, phone, organization_id")
+    .select(
+      "id, full_name, email, phone, organization_id, organizations(id, name, org_type, bankgiro, contact_email, contact_phone, emergency_phone, address, about, welcome_message, brand_mode, brand_name, brand_logo_path, brand_color, subscriptions(plan, status, trial_ends_at, past_due_since, is_demo, invoice_billing, addons))",
+    )
     .eq("id", userId)
     .maybeSingle();
-
-  const { data: roleRows } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-  const roles = (roleRows ?? []).map((r) => r.role as string);
-
-  const { data: org } = profile?.organization_id
-    ? await supabase
-        .from("organizations")
-        .select("id, name, org_type")
-        .eq("id", profile.organization_id)
-        .maybeSingle()
-    : { data: null };
-
-  const { data: residency } = await supabase
-    .from("residencies")
+  if (!withBrand.error || !/brand_/.test(withBrand.error.message)) return withBrand;
+  return (await supabase
+    .from("profiles")
     .select(
-      "id, resident_name, move_in_date, tenure, unit_id, units(id, unit_number, object_number, address, size_sqm, rooms, floor, tenure, monthly_amount, storage, parking, balcony, key_count, building_id, buildings(id, name, property_id, properties(id, name, address, postal_code, city)))",
+      "id, full_name, email, phone, organization_id, organizations(id, name, org_type, bankgiro, contact_email, contact_phone, emergency_phone, address, about, welcome_message, subscriptions(plan, status, trial_ends_at, past_due_since, is_demo, invoice_billing, addons))",
     )
-    .eq("user_id", userId)
-    .eq("status", "active")
-    .maybeSingle();
+    .eq("id", userId)
+    .maybeSingle()) as unknown as typeof withBrand;
+}
+
+export async function loadMe(supabase: Db, userId: string) {
+  // Tre oberoende frågor i stället för fyra i följd; organisationen följer
+  // med profilen.
+  const [{ data: profileRow }, { data: roleRows }, { data: residency }] = await Promise.all([
+    loadProfile(supabase, userId),
+    supabase.from("user_roles").select("role").eq("user_id", userId),
+    supabase
+      .from("residencies")
+      .select(
+        "id, resident_name, move_in_date, tenure, unit_id, units(id, unit_number, object_number, address, size_sqm, rooms, floor, tenure, monthly_amount, storage, parking, balcony, key_count, building_id, buildings(id, name, property_id, properties(id, name, address, postal_code, city)))",
+      )
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .maybeSingle(),
+  ]);
+  const orgRow = profileRow?.organizations ?? null;
+  const org = orgRow
+    ? {
+        id: orgRow.id,
+        name: orgRow.name,
+        org_type: orgRow.org_type,
+        bankgiro: orgRow.bankgiro,
+        contact_email: orgRow.contact_email,
+        contact_phone: orgRow.contact_phone,
+        emergency_phone: orgRow.emergency_phone,
+        address: orgRow.address,
+        about: orgRow.about,
+        welcome_message: orgRow.welcome_message,
+        brand: {
+          mode: (orgRow.brand_mode ?? "platform") as BrandMode,
+          name: orgRow.brand_name,
+          logoPath: orgRow.brand_logo_path,
+          color: orgRow.brand_color,
+        },
+      }
+    : null;
+  const profile = profileRow
+    ? {
+        id: profileRow.id,
+        full_name: profileRow.full_name,
+        email: profileRow.email,
+        phone: profileRow.phone,
+        organization_id: profileRow.organization_id,
+      }
+    : null;
+  const roles = (roleRows ?? []).map((r) => r.role as string);
+  // Planen styr vilka funktioner som finns; ett spärrat konto får bara läsa.
+  const access = accessFor(orgRow?.subscriptions ?? null);
+  const { permissions, planLocked } = applyPlan(permissionsFor(roles), access);
 
   return {
     userId,
     profile,
     roles,
+    permissions,
+    planLocked,
+    plan: access.plan,
+    access: access.state,
+    features: access.features,
+    trialEndsAt: orgRow?.subscriptions?.trial_ends_at ?? null,
+    home: homeFor({ roles, hasResidency: !!residency }),
     isStaff: roles.some((r) => STAFF_ROLES.includes(r)),
     isContractor: roles.includes("contractor"),
     organization: org,
@@ -45,18 +142,70 @@ async function loadMe(supabase: Db, userId: string) {
   };
 }
 
-async function requireStaff(supabase: Db, userId: string) {
+/**
+ * Följdskrivningar (händelselogg, notiser) ska inte fälla en åtgärd som redan
+ * är sparad, men fel ska synas i serverloggen i stället för att försvinna.
+ */
+function logFailure(what: string, result: { error: { message: string } | null }) {
+  if (result.error) console.error(`${what}: ${result.error.message}`);
+}
+
+export async function requirePermission(supabase: Db, userId: string, permission: Permission) {
   const me = await loadMe(supabase, userId);
-  if (!me.isStaff) throw new Error("Behörighet saknas");
+  if (!me.permissions.includes(permission)) {
+    if (me.planLocked.includes(permission)) {
+      throw new Error("Ingår inte i er plan. Uppgradera under Abonnemang.");
+    }
+    if (me.access === "locked" && permissionsFor(me.roles).includes(permission)) {
+      throw new Error("Kontot är skrivskyddat tills abonnemanget är betalt.");
+    }
+    throw new Error("Behörighet saknas");
+  }
   if (!me.profile?.organization_id) throw new Error("Ingen organisation");
   return { me, orgId: me.profile.organization_id };
 }
 
+/** Spärr för boendes sidor med funktioner som inte ingår i alla planer. */
+function requireFeature(me: { features: Feature[] }, feature: Feature) {
+  if (!me.features.includes(feature)) throw new Error("Ingår inte i er förenings plan.");
+}
+
+/** Felkod P0001 är regelbrott från bokningstriggrarna, 23505 en dubbelbokning. */
+function bookingErrorMessage(error: { code?: string; message: string }) {
+  if (error.code === "23505") return "Tiden är redan bokad.";
+  if (error.code === "P0001") return error.message;
+  return "Bokningen kunde inte sparas.";
+}
+
 export const getMe = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => loadMe(context.supabase as Db, context.userId));
+  .handler(async ({ context }) => {
+    // Omförsök av utskick görs i bakgrunden när appen används.
+    void deliverQueuedOccasionally();
+    return loadMe(context.supabase as Db, context.userId);
+  });
 
 /* ------------------------------- BOENDE ------------------------------- */
+
+/**
+ * "Mina" felanmälningar: de man själv anmält och de som gäller ens lägenhet.
+ * RLS släpper igenom hela föreningens ärenden för personal, så filtret behövs
+ * för att styrelseledamöter som bor i föreningen ska se sina egna.
+ */
+function myRequestsFilter(userId: string, unitId: string | null) {
+  return unitId ? `reported_by.eq.${userId},unit_id.eq.${unitId}` : `reported_by.eq.${userId}`;
+}
+
+async function myActiveUnitId(supabase: Db, userId: string) {
+  const { data } = await supabase
+    .from("residencies")
+    .select("unit_id")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  return data?.unit_id ?? null;
+}
 
 export const getResidentDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -77,11 +226,13 @@ export const getResidentDashboard = createServerFn({ method: "GET" })
       supabase
         .from("maintenance_requests")
         .select("id, ticket_number, title, status, priority, is_urgent, updated_at, category")
+        .or(myRequestsFilter(context.userId, unitId))
         .order("created_at", { ascending: false })
         .limit(4),
       supabase
         .from("bookings")
         .select("id, starts_at, ends_at, resources(name, icon, location)")
+        .eq("user_id", context.userId)
         .gte("ends_at", new Date().toISOString())
         .order("starts_at", { ascending: true })
         .limit(3),
@@ -101,11 +252,11 @@ export const getResidentDashboard = createServerFn({ method: "GET" })
 
     return {
       me,
-      payment: payment.data?.[0] ?? null,
+      payment: me.features.includes("economy") ? (payment.data?.[0] ?? null) : null,
       requests: requests.data ?? [],
       bookings: bookings.data ?? [],
       announcements: announcements.data ?? [],
-      meetings: meetings.data ?? [],
+      meetings: me.features.includes("meetings") ? (meetings.data ?? []) : [],
     };
   });
 
@@ -113,29 +264,47 @@ export const getMyHome = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const me = await loadMe(supabase, context.userId);
-    const { data: documents } = await supabase
-      .from("documents")
-      .select("id, title, doc_type, file_kind, file_size, unit_id, created_at")
-      .order("created_at", { ascending: false });
-    return { me, documents: documents ?? [] };
+    const [me, documents, inspections, household] = await Promise.all([
+      loadMe(supabase, context.userId),
+      supabase
+        .from("documents")
+        .select("id, title, doc_type, file_kind, file_size, unit_id, storage_path, created_at")
+        .order("created_at", { ascending: false }),
+      // Radreglerna begränsar till den egna lägenheten och fastigheten.
+      supabase
+        .from("inspections")
+        .select(
+          "id, kind, status, scheduled_at, completed_at, inspector_name, note, result, protocol, unit_id",
+        )
+        .neq("status", "cancelled")
+        .order("scheduled_at", { ascending: false }),
+      supabase.rpc("my_household"),
+    ]);
+    return {
+      me,
+      household: household.data ?? [],
+      documents: documents.data ?? [],
+      inspections: me.features.includes("inspections") ? (inspections.data ?? []) : [],
+    };
   });
 
 export const getMyRequests = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
+    const unitId = await myActiveUnitId(supabase, context.userId);
     const { data } = await supabase
       .from("maintenance_requests")
       .select(
         "id, ticket_number, title, category, status, priority, is_urgent, room, created_at, updated_at, assignee_name",
       )
+      .or(myRequestsFilter(context.userId, unitId))
       .order("created_at", { ascending: false });
     return data ?? [];
   });
 
 export const getRequestDetail = createServerFn({ method: "GET" })
-  .inputValidator((d: { id: string }) => d)
+  .inputValidator(byIdSchema)
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
@@ -148,7 +317,7 @@ export const getRequestDetail = createServerFn({ method: "GET" })
       .eq("id", data.id)
       .maybeSingle();
     if (!request) throw new Error("Ärendet hittades inte");
-    const [events, comments] = await Promise.all([
+    const [events, comments, attachments] = await Promise.all([
       supabase
         .from("maintenance_events")
         .select("id, label, created_at")
@@ -159,19 +328,30 @@ export const getRequestDetail = createServerFn({ method: "GET" })
         .select("id, author_name, author_role, body, created_at")
         .eq("request_id", data.id)
         .order("created_at", { ascending: true }),
+      supabase
+        .from("request_attachments")
+        .select("id, storage_path, file_name, content_type, created_at")
+        .eq("request_id", data.id)
+        .order("created_at", { ascending: true }),
     ]);
-    return { me, request, events: events.data ?? [], comments: comments.data ?? [] };
+    return {
+      me,
+      request,
+      events: events.data ?? [],
+      comments: comments.data ?? [],
+      attachments: attachments.data ?? [],
+    };
   });
 
 export const createRequest = createServerFn({ method: "POST" })
   .inputValidator(
-    (d: {
-      category: string;
-      title: string;
-      description: string;
-      room?: string;
-      isUrgent: boolean;
-    }) => d,
+    z.object({
+      category: shortText.min(1),
+      title: shortText.min(1),
+      description: longText,
+      room: shortText.optional(),
+      isUrgent: z.boolean(),
+    }),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
@@ -193,19 +373,28 @@ export const createRequest = createServerFn({ method: "POST" })
         priority: data.isUrgent ? "urgent" : "normal",
         status: "new",
       })
-      .select("id, ticket_number")
+      .select("id, ticket_number, organization_id")
       .single();
-    if (error) throw new Error(error.message);
-    await supabase.from("maintenance_events").insert({
-      organization_id: me.profile.organization_id,
-      request_id: created.id,
-      label: "Felanmälan skickad",
-    });
+    if (error) throw dbError(error);
+    logFailure(
+      "Händelselogg",
+      await supabase.from("maintenance_events").insert({
+        organization_id: me.profile.organization_id,
+        request_id: created.id,
+        label: "Felanmälan skickad",
+      }),
+    );
     return created;
   });
 
 export const addRequestComment = createServerFn({ method: "POST" })
-  .inputValidator((d: { requestId: string; body: string; action?: "still_broken" | "resolved" }) => d)
+  .inputValidator(
+    z.object({
+      requestId: id,
+      body: longText,
+      action: z.enum(["still_broken", "resolved"]).optional(),
+    }),
+  )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
@@ -219,33 +408,48 @@ export const addRequestComment = createServerFn({ method: "POST" })
         request_id: data.requestId,
         author_user_id: context.userId,
         author_name: me.profile?.full_name ?? "Boende",
-        author_role: me.isStaff ? "staff" : "resident",
+        author_role: me.isStaff
+          ? senderRole(me.roles)
+          : me.isContractor
+            ? "contractor"
+            : "resident",
         body: data.body.trim(),
       });
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
     }
 
-    if (data.action === "resolved") {
-      await supabase
-        .from("maintenance_requests")
-        .update({ status: "resolved", resolved_at: new Date().toISOString() })
-        .eq("id", data.requestId);
-      await supabase.from("maintenance_events").insert({
-        organization_id: orgId,
-        request_id: data.requestId,
-        label: "Boende bekräftade att problemet är löst",
-      });
+    if (data.body.trim() && (me.isStaff || me.isContractor)) {
+      await notifyReporter(
+        supabase,
+        data.requestId,
+        "Nytt svar i ditt ärende",
+        `${me.profile?.full_name ?? "Förvaltningen"}: ${data.body.trim().slice(0, 200)}`,
+      );
     }
-    if (data.action === "still_broken") {
-      await supabase
+
+    if (data.action) {
+      const resolved = data.action === "resolved";
+      const { data: updated, error } = await supabase
         .from("maintenance_requests")
-        .update({ status: "in_progress", resolved_at: null })
-        .eq("id", data.requestId);
-      await supabase.from("maintenance_events").insert({
-        organization_id: orgId,
-        request_id: data.requestId,
-        label: "Boende meddelade att problemet kvarstår",
-      });
+        .update(
+          resolved
+            ? { status: "resolved", resolved_at: new Date().toISOString() }
+            : { status: "in_progress", resolved_at: null },
+        )
+        .eq("id", data.requestId)
+        .select("id");
+      if (error) throw dbError(error);
+      if (!updated?.length) throw new Error("Ärendet kunde inte uppdateras");
+      logFailure(
+        "Händelselogg",
+        await supabase.from("maintenance_events").insert({
+          organization_id: orgId,
+          request_id: data.requestId,
+          label: resolved
+            ? "Boende bekräftade att problemet är löst"
+            : "Boende meddelade att problemet kvarstår",
+        }),
+      );
     }
     return { ok: true };
   });
@@ -265,7 +469,12 @@ export const getResources = createServerFn({ method: "GET" })
   });
 
 export const getResourceDay = createServerFn({ method: "GET" })
-  .inputValidator((d: { resourceId: string; date: string }) => d)
+  .inputValidator(
+    z.object({
+      resourceId: id,
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ogiltigt datum"),
+    }),
+  )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
@@ -292,14 +501,25 @@ export const getMyBookings = createServerFn({ method: "GET" })
     const supabase = context.supabase as Db;
     const { data } = await supabase
       .from("bookings")
-      .select("id, starts_at, ends_at, status, resources(name, icon, location)")
+      .select("id, starts_at, ends_at, status, resources(name, icon, location, cancel_hours)")
       .eq("user_id", context.userId)
       .order("starts_at", { ascending: true });
     return data ?? [];
   });
 
 export const createBooking = createServerFn({ method: "POST" })
-  .inputValidator((d: { resourceId: string; startsAt: string; endsAt: string }) => d)
+  .inputValidator(
+    z
+      .object({
+        resourceId: id,
+        startsAt: z.string().datetime({ offset: true }),
+        endsAt: z.string().datetime({ offset: true }),
+      })
+      .refine((d) => new Date(d.endsAt) > new Date(d.startsAt), {
+        message: "Sluttiden måste vara efter starttiden",
+        path: ["endsAt"],
+      }),
+  )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
@@ -307,24 +527,8 @@ export const createBooking = createServerFn({ method: "POST" })
     const orgId = me.profile?.organization_id;
     if (!orgId) throw new Error("Ingen organisation");
 
-    const { data: resource } = await supabase
-      .from("resources")
-      .select("max_active_bookings, name")
-      .eq("id", data.resourceId)
-      .maybeSingle();
-
-    const { data: active } = await supabase
-      .from("bookings")
-      .select("id")
-      .eq("user_id", context.userId)
-      .eq("resource_id", data.resourceId)
-      .gte("ends_at", new Date().toISOString());
-    if (resource && (active?.length ?? 0) >= resource.max_active_bookings) {
-      throw new Error(
-        `Du har redan ${resource.max_active_bookings} aktiva bokningar för ${resource.name}.`,
-      );
-    }
-
+    // Bokningsreglerna (öppettider, max aktiva bokningar m.m.) kontrolleras av
+    // databasen, se migrationen booking_rules.
     const { error } = await supabase.from("bookings").insert({
       organization_id: orgId,
       resource_id: data.resourceId,
@@ -334,17 +538,17 @@ export const createBooking = createServerFn({ method: "POST" })
       starts_at: data.startsAt,
       ends_at: data.endsAt,
     });
-    if (error) throw new Error("Tiden är redan bokad.");
+    if (error) throw new Error(bookingErrorMessage(error));
     return { ok: true };
   });
 
 export const cancelBooking = createServerFn({ method: "POST" })
-  .inputValidator((d: { id: string }) => d)
+  .inputValidator(byIdSchema)
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
     const { error } = await supabase.from("bookings").delete().eq("id", data.id);
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(bookingErrorMessage(error));
     return { ok: true };
   });
 
@@ -356,7 +560,7 @@ export const getAnnouncements = createServerFn({ method: "GET" })
     const supabase = context.supabase as Db;
     const { data } = await supabase
       .from("announcements")
-      .select("*, properties(name)")
+      .select("*, properties(name), buildings(name)")
       .eq("is_published", true)
       .order("published_at", { ascending: false });
     return data ?? [];
@@ -377,19 +581,29 @@ export const getMeetings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
+    requireFeature(await loadMe(supabase, context.userId), "meetings");
     const [meetings, attendance] = await Promise.all([
       supabase.from("meetings").select("*").order("starts_at", { ascending: false }),
-      supabase.from("meeting_attendance").select("meeting_id, status").eq("user_id", context.userId),
+      supabase
+        .from("meeting_attendance")
+        .select("meeting_id, status")
+        .eq("user_id", context.userId),
     ]);
     return { meetings: meetings.data ?? [], attendance: attendance.data ?? [] };
   });
 
 export const setMeetingAttendance = createServerFn({ method: "POST" })
-  .inputValidator((d: { meetingId: string; status: string }) => d)
+  .inputValidator(
+    z.object({
+      meetingId: id,
+      status: z.enum(["attending", "declined"]),
+    }),
+  )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
     const me = await loadMe(supabase, context.userId);
+    requireFeature(me, "meetings");
     const orgId = me.profile?.organization_id;
     if (!orgId) throw new Error("Ingen organisation");
     const { error } = await supabase.from("meeting_attendance").upsert(
@@ -402,7 +616,7 @@ export const setMeetingAttendance = createServerFn({ method: "POST" })
       },
       { onConflict: "meeting_id,user_id" },
     );
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -411,6 +625,7 @@ export const getMyEconomy = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
     const me = await loadMe(supabase, context.userId);
+    requireFeature(me, "economy");
     const { data } = await supabase
       .from("payments")
       .select("*")
@@ -434,26 +649,125 @@ export const getMessages = createServerFn({ method: "GET" })
   });
 
 export const sendMessage = createServerFn({ method: "POST" })
-  .inputValidator((d: { threadKey: string; subject?: string; body: string; requestId?: string }) => d)
+  .inputValidator(
+    z.object({
+      threadKey: shortText.min(1),
+      subject: shortText.optional(),
+      body: longText.trim().min(1),
+      requestId: id.optional(),
+      /** Personal: vilken boende tråden gäller. */
+      residentUserId: id.optional(),
+    }),
+  )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
     const me = await loadMe(supabase, context.userId);
     const orgId = me.profile?.organization_id;
     if (!orgId) throw new Error("Ingen organisation");
+    const staff = me.permissions.includes("messages.edit");
+
+    if (!staff && data.threadKey !== `resident:${context.userId}`) {
+      // Boende får bara skriva i trådar de redan är del av.
+      const { count } = await supabase
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("thread_key", data.threadKey)
+        .eq("resident_user_id", context.userId);
+      if (!count) throw new Error("Tråden hittades inte");
+    }
+
     const { error } = await supabase.from("messages").insert({
       organization_id: orgId,
       thread_key: data.threadKey,
       subject: data.subject ?? null,
       request_id: data.requestId ?? null,
-      resident_user_id: me.isStaff ? null : context.userId,
+      resident_user_id: staff ? (data.residentUserId ?? null) : context.userId,
       sender_user_id: context.userId,
       sender_name: me.profile?.full_name ?? "Boende",
-      sender_role: me.isStaff ? "staff" : "resident",
+      sender_role: staff ? senderRole(me.roles) : "resident",
       body: data.body,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
+    if (staff && data.residentUserId) {
+      logFailure(
+        "Notis",
+        await supabase.from("notifications").insert({
+          organization_id: orgId,
+          user_id: data.residentUserId,
+          title: `Nytt meddelande: ${data.subject ?? "från förvaltningen"}`,
+          body: data.body.slice(0, 200),
+          link: "/app/meddelanden",
+        }),
+      );
+      await deliverQueued();
+    }
     return { ok: true };
+  });
+
+/** Notis till den som anmälde ett ärende (tyst om det misslyckas). */
+async function notifyReporter(supabase: Db, requestId: string, title: string, body: string) {
+  logFailure(
+    "Notis",
+    await supabase.rpc("notify_request_reporter", {
+      _request_id: requestId,
+      _title: title,
+      _body: body,
+    }),
+  );
+  await deliverQueued();
+}
+
+/** Notis till alla medlemmar i organisationen utom avsändaren. */
+async function notifyMembers(
+  supabase: Db,
+  orgId: string,
+  exceptUserId: string,
+  notification: { title: string; body: string; link: string },
+) {
+  const { data: members } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("organization_id", orgId)
+    .neq("id", exceptUserId);
+  if (!members || members.length === 0) return;
+  logFailure(
+    "Notiser",
+    await supabase
+      .from("notifications")
+      .insert(members.map((m) => ({ organization_id: orgId, user_id: m.id, ...notification }))),
+  );
+  await deliverQueued();
+}
+
+/** Hur personal presenteras i meddelanden och kommentarer. */
+function senderRole(roles: string[]) {
+  if (["org_admin", "property_manager", "staff", "super_admin"].some((r) => roles.includes(r))) {
+    return "staff";
+  }
+  return roles.includes("board_member") ? "board_member" : "staff";
+}
+
+export const getAdminMessages = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "messages.edit");
+    const [messages, residents] = await Promise.all([
+      supabase
+        .from("messages")
+        .select("*")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("residencies")
+        .select("id, resident_name, user_id, units(unit_number, address)")
+        .eq("organization_id", orgId)
+        .eq("status", "active")
+        .not("user_id", "is", null)
+        .order("resident_name"),
+    ]);
+    return { messages: messages.data ?? [], residents: residents.data ?? [] };
   });
 
 /* ------------------------------ ADMIN -------------------------------- */
@@ -462,39 +776,81 @@ export const getAdminOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { me, orgId } = await requireStaff(supabase, context.userId);
+    const { me, orgId } = await requirePermission(supabase, context.userId, "overview");
 
-    const [units, requests, payments, bookings, drafts, resources, projects, meetings] =
-      await Promise.all([
-        supabase.from("units").select("id, status").eq("organization_id", orgId),
-        supabase
-          .from("maintenance_requests")
-          .select("id, status, priority, is_urgent, created_at, resolved_at, category")
-          .eq("organization_id", orgId),
-        supabase
-          .from("payments")
-          .select("status, amount, period")
-          .eq("organization_id", orgId)
-          .eq("period", "2026-09-01"),
-        supabase
-          .from("bookings")
-          .select("id, resource_id, starts_at")
-          .eq("organization_id", orgId)
-          .gte("starts_at", new Date(Date.now() - 30 * 864e5).toISOString()),
-        supabase
-          .from("announcements")
-          .select("id, title")
-          .eq("organization_id", orgId)
-          .eq("is_published", false),
-        supabase.from("resources").select("id, name, slot_minutes, open_from, open_to"),
-        supabase.from("maintenance_projects").select("*").eq("organization_id", orgId),
-        supabase
-          .from("meetings")
-          .select("id, title, starts_at")
-          .gte("starts_at", new Date().toISOString())
-          .order("starts_at", { ascending: true })
-          .limit(1),
-      ]);
+    // Senaste debiteringsperioden som har startat (inte framtida perioder).
+    const { data: latestPayment } = await supabase
+      .from("payments")
+      .select("period")
+      .eq("organization_id", orgId)
+      .lte("period", new Date().toISOString().slice(0, 10))
+      .order("period", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const currentPeriod = latestPayment?.period ?? null;
+
+    const canInvite = me.permissions.includes("residents.edit");
+    const [
+      units,
+      requests,
+      payments,
+      bookings,
+      drafts,
+      resources,
+      projects,
+      meetings,
+      residentRows,
+      invitations,
+    ] = await Promise.all([
+      supabase.from("units").select("id, status").eq("organization_id", orgId),
+      supabase
+        .from("maintenance_requests")
+        .select("id, status, priority, is_urgent, created_at, resolved_at, category")
+        .eq("organization_id", orgId),
+      currentPeriod
+        ? supabase
+            .from("payments")
+            .select("status, amount, period")
+            .eq("organization_id", orgId)
+            .eq("period", currentPeriod)
+        : Promise.resolve({ data: [] as never[] }),
+      supabase
+        .from("bookings")
+        .select("id, resource_id, starts_at")
+        .eq("organization_id", orgId)
+        .gte("starts_at", new Date(Date.now() - 30 * 864e5).toISOString()),
+      supabase
+        .from("announcements")
+        .select("id, title")
+        .eq("organization_id", orgId)
+        .eq("is_published", false),
+      supabase
+        .from("resources")
+        .select("id, name, slot_minutes, open_from, open_to")
+        .eq("organization_id", orgId)
+        .eq("is_active", true),
+      supabase.from("maintenance_projects").select("*").eq("organization_id", orgId),
+      supabase
+        .from("meetings")
+        .select("id, title, starts_at")
+        .gte("starts_at", new Date().toISOString())
+        .order("starts_at", { ascending: true })
+        .limit(1),
+      supabase
+        .from("residencies")
+        .select("user_id")
+        .eq("organization_id", orgId)
+        .eq("status", "active"),
+      canInvite
+        ? supabase
+            .from("invitations")
+            .select("id", { count: "exact", head: true })
+            .eq("organization_id", orgId)
+            .is("accepted_at", null)
+            .is("revoked_at", null)
+            .gt("expires_at", new Date().toISOString())
+        : Promise.resolve({ count: null }),
+    ]);
 
     const reqs = requests.data ?? [];
     const open = reqs.filter((r) => !["resolved", "closed"].includes(r.status as string));
@@ -515,13 +871,18 @@ export const getAdminOverview = createServerFn({ method: "GET" })
           ) / resolved.length
         : 0;
 
-    const slotsPerDay = 8;
+    // Beläggning senaste 30 dagarna: bokade pass delat med antalet pass som
+    // gick att boka enligt resursens öppettider och passlängd.
+    const now = Date.now();
+    const pastBookings = (bookings.data ?? []).filter((b) => new Date(b.starts_at).getTime() < now);
     const occupancy = (resources.data ?? []).map((res) => {
-      const count = (bookings.data ?? []).filter((b) => b.resource_id === res.id).length;
+      const count = pastBookings.filter((b) => b.resource_id === res.id).length;
+      const openMinutes = minutesOf(res.open_to, true) - minutesOf(res.open_from);
+      const slotsPerDay = Math.max(1, Math.floor(openMinutes / Math.max(1, res.slot_minutes)));
       return {
         id: res.id,
         name: res.name,
-        rate: Math.min(100, Math.round((count / (slotsPerDay * 30)) * 100 * 12)),
+        rate: Math.min(100, Math.round((count / (slotsPerDay * 30)) * 100)),
       };
     });
 
@@ -536,6 +897,11 @@ export const getAdminOverview = createServerFn({ method: "GET" })
         total: units.data?.length ?? 0,
         active: (units.data ?? []).filter((u) => u.status === "active").length,
       },
+      residents: {
+        total: residentRows.data?.length ?? 0,
+        withAccount: (residentRows.data ?? []).filter((r) => r.user_id).length,
+        pendingInvitations: invitations.count ?? null,
+      },
       requests: {
         total: reqs.length,
         open: open.length,
@@ -545,15 +911,17 @@ export const getAdminOverview = createServerFn({ method: "GET" })
         avgResolutionDays: Math.round(avgDays * 10) / 10,
         categories,
       },
-      economy: {
-        paidShare: pays.length ? Math.round((paid / pays.length) * 1000) / 10 : 0,
-        unpaid: pays.length - paid,
-        billed: pays.reduce((s, p) => s + Number(p.amount), 0),
-      },
+      economy: me.permissions.includes("economy.view")
+        ? {
+            paidShare: pays.length ? Math.round((paid / pays.length) * 1000) / 10 : 0,
+            unpaid: pays.length - paid,
+            billed: pays.reduce((s, p) => s + Number(p.amount), 0),
+          }
+        : null,
       bookings: { occupancy },
       drafts: drafts.data ?? [],
-      projects: projects.data ?? [],
-      nextMeeting: meetings.data?.[0] ?? null,
+      projects: me.permissions.includes("maintenance.view") ? (projects.data ?? []) : [],
+      nextMeeting: me.features.includes("meetings") ? (meetings.data?.[0] ?? null) : null,
     };
   });
 
@@ -561,7 +929,7 @@ export const getAdminRequests = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    await requireStaff(supabase, context.userId);
+    await requirePermission(supabase, context.userId, "requests.view");
     const { data } = await supabase
       .from("maintenance_requests")
       .select(
@@ -573,19 +941,19 @@ export const getAdminRequests = createServerFn({ method: "GET" })
 
 export const updateRequestAdmin = createServerFn({ method: "POST" })
   .inputValidator(
-    (d: {
-      id: string;
-      status?: string;
-      priority?: string;
-      assigneeName?: string | null;
-      contractorId?: string | null;
-      note?: string;
-    }) => d,
+    z.object({
+      id,
+      status: requestStatus.optional(),
+      priority: requestPriority.optional(),
+      assigneeName: shortText.nullable().optional(),
+      contractorId: id.nullable().optional(),
+      note: longText.optional(),
+    }),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    const { me, orgId } = await requireStaff(supabase, context.userId);
+    const { me, orgId } = await requirePermission(supabase, context.userId, "requests.edit");
 
     const patch: Record<string, unknown> = {};
     if (data.status) patch["status"] = data.status;
@@ -600,12 +968,12 @@ export const updateRequestAdmin = createServerFn({ method: "POST" })
         .from("maintenance_requests")
         .update(patch as never)
         .eq("id", data.id);
-      if (error) throw new Error(error.message);
+      if (error) throw dbError(error);
     }
 
     const labels: string[] = [];
-    if (data.status) labels.push(`Status ändrad till ${data.status}`);
-    if (data.priority) labels.push(`Prioritet ändrad till ${data.priority}`);
+    if (data.status) labels.push(`Status ändrad till ${requestStatusLabels[data.status]}`);
+    if (data.priority) labels.push(`Prioritet ändrad till ${priorityLabels[data.priority]}`);
     if (data.assigneeName) labels.push(`Ansvarig: ${data.assigneeName}`);
     if (data.contractorId) {
       const { data: c } = await supabase
@@ -615,13 +983,16 @@ export const updateRequestAdmin = createServerFn({ method: "POST" })
         .maybeSingle();
       if (c) labels.push(`Entreprenör tilldelad: ${c.company}`);
     }
-    for (const label of labels) {
-      await supabase
-        .from("maintenance_events")
-        .insert({ organization_id: orgId, request_id: data.id, label });
+    if (labels.length > 0) {
+      logFailure(
+        "Händelselogg",
+        await supabase
+          .from("maintenance_events")
+          .insert(labels.map((label) => ({ organization_id: orgId, request_id: data.id, label }))),
+      );
     }
     if (data.note?.trim()) {
-      await supabase.from("maintenance_comments").insert({
+      const { error } = await supabase.from("maintenance_comments").insert({
         organization_id: orgId,
         request_id: data.id,
         author_user_id: context.userId,
@@ -629,6 +1000,17 @@ export const updateRequestAdmin = createServerFn({ method: "POST" })
         author_role: "staff",
         body: data.note.trim(),
       });
+      if (error) throw dbError(error);
+    }
+    if (data.status || data.note?.trim()) {
+      await notifyReporter(
+        supabase,
+        data.id,
+        data.status
+          ? `Ditt ärende är ${requestStatusLabels[data.status]?.toLowerCase()}`
+          : "Nytt svar i ditt ärende",
+        data.note?.trim().slice(0, 200) || labels.join(" · "),
+      );
     }
     return { ok: true };
   });
@@ -637,7 +1019,7 @@ export const getAdminProperties = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "properties.view");
     const [properties, buildings, units] = await Promise.all([
       supabase.from("properties").select("*").eq("organization_id", orgId).order("address"),
       supabase.from("buildings").select("*").eq("organization_id", orgId),
@@ -657,11 +1039,11 @@ export const getAdminUnits = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "properties.view");
     const { data } = await supabase
       .from("units")
       .select(
-        "id, unit_number, object_number, address, size_sqm, rooms, floor, tenure, monthly_amount, status, buildings(name)",
+        "id, unit_number, object_number, address, size_sqm, rooms, floor, tenure, monthly_amount, status, storage, parking, key_count, balcony, buildings(name)",
       )
       .eq("organization_id", orgId)
       .order("address")
@@ -674,24 +1056,79 @@ export const getAdminResidents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
-    const { data } = await supabase
-      .from("residencies")
-      .select(
-        "id, resident_name, email, phone, move_in_date, tenure, status, user_id, units(unit_number, address)",
-      )
-      .eq("organization_id", orgId)
-      .order("resident_name")
-      .limit(300);
-    return data ?? [];
+    const { me, orgId } = await requirePermission(supabase, context.userId, "residents.view");
+    const canEdit = me.permissions.includes("residents.edit");
+    const [residents, units, invitations, profiles, roles] = await Promise.all([
+      supabase
+        .from("residencies")
+        .select(
+          "id, resident_name, email, phone, move_in_date, move_out_date, tenure, status, is_primary, user_id, unit_id, units(unit_number, address)",
+        )
+        .eq("organization_id", orgId)
+        .order("resident_name")
+        .limit(3000),
+      supabase
+        .from("units")
+        .select("id, unit_number, address, tenure, status")
+        .eq("organization_id", orgId)
+        .order("address")
+        .order("unit_number")
+        .limit(1000),
+      canEdit
+        ? supabase
+            .from("invitations")
+            .select("residency_id, invitee_name, invitee_email, unit_id, created_at")
+            .eq("organization_id", orgId)
+            .is("accepted_at", null)
+            .is("revoked_at", null)
+            .gt("expires_at", new Date().toISOString())
+        : Promise.resolve({ data: [] }),
+      supabase.from("profiles").select("id, full_name, email").eq("organization_id", orgId),
+      supabase.from("user_roles").select("user_id, role").eq("organization_id", orgId),
+    ]);
+    const invited = new Set((invitations.data ?? []).map((i) => i.residency_id).filter(Boolean));
+    const linked = new Set(
+      (residents.data ?? [])
+        .filter((r) => r.status === "active" && r.user_id)
+        .map((r) => r.user_id),
+    );
+    const staffRoles = new Set(STAFF_ROLES);
+    const roleOf = new Map<string, string[]>();
+    for (const r of roles.data ?? [])
+      roleOf.set(r.user_id, [...(roleOf.get(r.user_id) ?? []), r.role]);
+    // Konton med rollen boende som inte är kopplade till någon lägenhet.
+    const accountsWithoutHome = (profiles.data ?? []).filter((p) => {
+      const rs = roleOf.get(p.id) ?? [];
+      return !linked.has(p.id) && rs.includes("resident") && !rs.some((r) => staffRoles.has(r));
+    });
+    const occupied = new Set(
+      (residents.data ?? []).filter((r) => r.status === "active").map((r) => r.unit_id),
+    );
+    return {
+      canEdit,
+      residents: (residents.data ?? []).map((r) => ({
+        ...r,
+        invited: invited.has(r.id),
+      })),
+      // Inbjudningar till nya personer som ännu inte finns som boende.
+      pendingInvitations: (invitations.data ?? [])
+        .filter((i) => !i.residency_id)
+        .map((i) => ({
+          ...i,
+          unit: (units.data ?? []).find((u) => u.id === i.unit_id) ?? null,
+        })),
+      accountsWithoutHome,
+      units: units.data ?? [],
+      vacantUnits: (units.data ?? []).filter((u) => !occupied.has(u.id)),
+    };
   });
 
 export const getResidentDetail = createServerFn({ method: "GET" })
-  .inputValidator((d: { id: string }) => d)
+  .inputValidator(byIdSchema)
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    await requireStaff(supabase, context.userId);
+    await requirePermission(supabase, context.userId, "residents.view");
     const { data: residency } = await supabase
       .from("residencies")
       .select("*, units(*, buildings(name, properties(name, address)))")
@@ -717,7 +1154,10 @@ export const getResidentDetail = createServerFn({ method: "GET" })
         .eq("unit_id", unitId)
         .order("starts_at", { ascending: false })
         .limit(10),
-      supabase.from("documents").select("id, title, doc_type, file_kind").eq("unit_id", unitId),
+      supabase
+        .from("documents")
+        .select("id, title, doc_type, file_kind, storage_path")
+        .eq("unit_id", unitId),
     ]);
     return {
       residency,
@@ -732,7 +1172,7 @@ export const getContractors = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "contractors.view");
     const [contractors, requests] = await Promise.all([
       supabase.from("contractors").select("*").eq("organization_id", orgId).order("company"),
       supabase
@@ -746,20 +1186,20 @@ export const getContractors = createServerFn({ method: "GET" })
 
 export const saveContractor = createServerFn({ method: "POST" })
   .inputValidator(
-    (d: {
-      id?: string;
-      company: string;
-      contactName?: string;
-      phone?: string;
-      email?: string;
-      category?: string;
-      agreementNote?: string;
-    }) => d,
+    z.object({
+      id: id.optional(),
+      company: shortText.min(1),
+      contactName: shortText.optional(),
+      phone: shortText.optional(),
+      email: shortText.optional(),
+      category: shortText.optional(),
+      agreementNote: longText.optional(),
+    }),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "contractors.edit");
     const row = {
       organization_id: orgId,
       company: data.company,
@@ -770,9 +1210,13 @@ export const saveContractor = createServerFn({ method: "POST" })
       agreement_note: data.agreementNote ?? null,
     };
     const { error } = data.id
-      ? await supabase.from("contractors").update(row).eq("id", data.id)
+      ? await supabase
+          .from("contractors")
+          .update(row)
+          .eq("id", data.id)
+          .eq("organization_id", orgId)
       : await supabase.from("contractors").insert(row);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -780,7 +1224,7 @@ export const getAdminAnnouncements = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "communication.edit");
     const [announcements, properties, buildings] = await Promise.all([
       supabase
         .from("announcements")
@@ -797,55 +1241,169 @@ export const getAdminAnnouncements = createServerFn({ method: "GET" })
     };
   });
 
+/** En riktad nyhet måste ha en fastighet i föreningen, och ett hus i den fastigheten. */
+async function checkAudience(
+  supabase: Db,
+  orgId: string,
+  scope: AudienceScope,
+  propertyId: string | null,
+  buildingId: string | null,
+) {
+  if (scope === "organization") return { propertyId: null, buildingId: null };
+  if (!propertyId) throw new Error("Välj vilken fastighet nyheten gäller.");
+  const { data: property } = await supabase
+    .from("properties")
+    .select("id")
+    .eq("id", propertyId)
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  if (!property) throw new Error("Fastigheten finns inte i föreningen.");
+  if (scope === "property") return { propertyId, buildingId: null };
+  if (!buildingId) throw new Error("Välj vilket hus nyheten gäller.");
+  const { data: building } = await supabase
+    .from("buildings")
+    .select("id")
+    .eq("id", buildingId)
+    .eq("property_id", propertyId)
+    .maybeSingle();
+  if (!building) throw new Error("Huset finns inte i den valda fastigheten.");
+  return { propertyId, buildingId };
+}
+
+/** Notis till boende när en nyhet publiceras; bara första gången, inte vid ändringar. */
+async function notifyAnnouncement(
+  supabase: Db,
+  orgId: string,
+  userId: string,
+  a: { title: string; body: string },
+) {
+  await notifyMembers(supabase, orgId, userId, {
+    title: `Ny information: ${a.title}`,
+    body: a.body.slice(0, 200),
+    link: "/app/information",
+  });
+}
+
+async function findAnnouncement(supabase: Db, orgId: string, announcementId: string) {
+  const { data } = await supabase
+    .from("announcements")
+    .select("id, title, body, is_published, published_at")
+    .eq("id", announcementId)
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  if (!data) throw new Error("Nyheten finns inte längre.");
+  return data;
+}
+
 export const saveAnnouncement = createServerFn({ method: "POST" })
   .inputValidator(
-    (d: {
-      id?: string;
-      title: string;
-      body: string;
-      category: string;
-      audienceScope: string;
-      propertyId?: string | null;
-      buildingId?: string | null;
-      publish: boolean;
-    }) => d,
+    z.object({
+      id: id.optional(),
+      title: shortText.min(1),
+      body: longText,
+      category: shortText.min(1),
+      audienceScope,
+      propertyId: id.nullable().optional(),
+      buildingId: id.nullable().optional(),
+      isPinned: z.boolean().optional(),
+      publish: z.boolean(),
+    }),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "communication.edit");
+    if (data.publish && !data.body.trim()) throw new Error("Skriv en text innan du publicerar.");
+    const audience = await checkAudience(
+      supabase,
+      orgId,
+      data.audienceScope,
+      data.propertyId ?? null,
+      data.buildingId ?? null,
+    );
+    const before = data.id ? await findAnnouncement(supabase, orgId, data.id) : null;
+    const now = new Date().toISOString();
+    const firstPublish = data.publish && !before?.is_published;
     const row = {
       organization_id: orgId,
-      title: data.title,
+      title: data.title.trim(),
       body: data.body,
       category: data.category,
       audience_scope: data.audienceScope,
-      property_id: data.propertyId ?? null,
-      building_id: data.buildingId ?? null,
+      property_id: audience.propertyId,
+      building_id: audience.buildingId,
+      is_pinned: data.isPinned ?? false,
       is_published: data.publish,
-      published_at: data.publish ? new Date().toISOString() : null,
+      // Publiceringsdatumet står kvar när en publicerad nyhet ändras.
+      published_at: data.publish ? (firstPublish ? now : (before?.published_at ?? now)) : null,
+      updated_at: before?.is_published && data.publish ? now : null,
     };
-    const { error } = data.id
-      ? await supabase.from("announcements").update(row).eq("id", data.id)
+    const { error } = before
+      ? await supabase
+          .from("announcements")
+          .update(row)
+          .eq("id", before.id)
+          .eq("organization_id", orgId)
       : await supabase.from("announcements").insert(row);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
+    if (firstPublish) await notifyAnnouncement(supabase, orgId, context.userId, row);
     return { ok: true };
   });
 
 export const publishAnnouncement = createServerFn({ method: "POST" })
-  .inputValidator((d: { id: string; publish: boolean }) => d)
+  .inputValidator(z.object({ id, publish: z.boolean() }))
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "communication.edit");
+    const before = await findAnnouncement(supabase, orgId, data.id);
+    if (before.is_published === data.publish) return { ok: true };
+    if (data.publish && !before.body.trim()) throw new Error("Skriv en text innan du publicerar.");
     const { error } = await supabase
       .from("announcements")
       .update({
         is_published: data.publish,
         published_at: data.publish ? new Date().toISOString() : null,
+        updated_at: null,
       })
-      .eq("id", data.id);
-    if (error) throw new Error(error.message);
+      .eq("id", data.id)
+      .eq("organization_id", orgId);
+    if (error) throw dbError(error);
+    if (data.publish) await notifyAnnouncement(supabase, orgId, context.userId, before);
+    return { ok: true };
+  });
+
+export const pinAnnouncement = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ id, pinned: z.boolean() }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "communication.edit");
+    const { data: rows, error } = await supabase
+      .from("announcements")
+      .update({ is_pinned: data.pinned })
+      .eq("id", data.id)
+      .eq("organization_id", orgId)
+      .select("id");
+    if (error) throw dbError(error);
+    if (!rows?.length) throw new Error("Nyheten finns inte längre.");
+    return { ok: true };
+  });
+
+export const deleteAnnouncement = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ id }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "communication.edit");
+    const { data: rows, error } = await supabase
+      .from("announcements")
+      .delete()
+      .eq("id", data.id)
+      .eq("organization_id", orgId)
+      .select("id");
+    if (error) throw dbError(error);
+    if (!rows?.length) throw new Error("Nyheten finns inte längre.");
     return { ok: true };
   });
 
@@ -853,7 +1411,7 @@ export const getAdminBookings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "bookings.edit");
     const [resources, bookings] = await Promise.all([
       supabase.from("resources").select("*").eq("organization_id", orgId).order("name"),
       supabase
@@ -868,24 +1426,36 @@ export const getAdminBookings = createServerFn({ method: "GET" })
 
 export const updateResource = createServerFn({ method: "POST" })
   .inputValidator(
-    (d: {
-      id: string;
-      slotMinutes: number;
-      openFrom: string;
-      openTo: string;
-      maxActiveBookings: number;
-      daysAhead: number;
-      cancelHours: number;
-      isActive: boolean;
-    }) => d,
+    z.object({
+      id,
+      name: z.string().trim().min(1).max(120).optional(),
+      location: z.string().trim().max(200).optional(),
+      slotMinutes: z
+        .number()
+        .int()
+        .min(15)
+        .max(24 * 60),
+      openFrom: timeOfDay,
+      openTo: timeOfDay,
+      maxActiveBookings: z.number().int().min(1).max(100),
+      daysAhead: z.number().int().min(1).max(365),
+      cancelHours: z
+        .number()
+        .int()
+        .min(0)
+        .max(24 * 14),
+      isActive: z.boolean(),
+    }),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "bookings.edit");
     const { error } = await supabase
       .from("resources")
       .update({
+        ...(data.name ? { name: data.name } : {}),
+        ...(data.location !== undefined ? { location: data.location || null } : {}),
         slot_minutes: data.slotMinutes,
         open_from: data.openFrom,
         open_to: data.openTo,
@@ -894,8 +1464,9 @@ export const updateResource = createServerFn({ method: "POST" })
         cancel_hours: data.cancelHours,
         is_active: data.isActive,
       })
-      .eq("id", data.id);
-    if (error) throw new Error(error.message);
+      .eq("id", data.id)
+      .eq("organization_id", orgId);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -903,18 +1474,29 @@ export const getAdminEconomy = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "economy.view");
     const { data } = await supabase
       .from("payments")
-      .select("id, period, amount, status, due_date, kind, units(unit_number, address)")
+      .select(
+        "id, period, amount, status, due_date, kind, reminded_at, units(unit_number, address)",
+      )
       .eq("organization_id", orgId)
       .order("period", { ascending: false })
-      .limit(1000);
+      .limit(5000);
     const rows = data ?? [];
-    const byPeriod = new Map<string, { period: string; billed: number; paid: number; count: number; paidCount: number }>();
+    const byPeriod = new Map<
+      string,
+      { period: string; billed: number; paid: number; count: number; paidCount: number }
+    >();
     rows.forEach((r) => {
       const key = r.period as string;
-      const entry = byPeriod.get(key) ?? { period: key, billed: 0, paid: 0, count: 0, paidCount: 0 };
+      const entry = byPeriod.get(key) ?? {
+        period: key,
+        billed: 0,
+        paid: 0,
+        count: 0,
+        paidCount: 0,
+      };
       entry.billed += Number(r.amount);
       entry.count += 1;
       if (r.status === "paid") {
@@ -925,21 +1507,21 @@ export const getAdminEconomy = createServerFn({ method: "GET" })
     });
     return {
       periods: [...byPeriod.values()].sort((a, b) => (a.period < b.period ? 1 : -1)),
-      unpaid: rows.filter((r) => r.status !== "paid").slice(0, 50),
+      unpaid: rows.filter((r) => r.status !== "paid").slice(0, 200),
     };
   });
 
 export const markPaymentPaid = createServerFn({ method: "POST" })
-  .inputValidator((d: { id: string }) => d)
+  .inputValidator(byIdSchema)
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    await requireStaff(supabase, context.userId);
+    await requirePermission(supabase, context.userId, "economy.edit");
     const { error } = await supabase
       .from("payments")
-      .update({ status: "paid", paid_at: new Date().toISOString() })
+      .update({ status: "paid", paid_at: new Date().toISOString(), paid_via: "manual" })
       .eq("id", data.id);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -947,6 +1529,7 @@ export const getMaintenanceProjects = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
+    await requirePermission(supabase, context.userId, "maintenance.view");
     const { data } = await supabase
       .from("maintenance_projects")
       .select("*, properties(name)")
@@ -955,22 +1538,38 @@ export const getMaintenanceProjects = createServerFn({ method: "GET" })
   });
 
 export const saveMaintenanceProject = createServerFn({ method: "POST" })
-  .inputValidator((d: { id?: string; title: string; year: number; status: string; note?: string }) => d)
+  .inputValidator(
+    z.object({
+      id: id.optional(),
+      title: shortText.min(1),
+      year: z.number().int().min(1900).max(2200),
+      status: projectStatus,
+      note: longText.optional(),
+      budget: z.number().min(0).max(1_000_000_000).nullable().optional(),
+      propertyId: id.nullable().optional(),
+    }),
+  )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "maintenance.edit");
     const row = {
       organization_id: orgId,
       title: data.title,
       year: data.year,
       status: data.status,
       note: data.note ?? null,
+      ...(data.budget !== undefined ? { budget: data.budget } : {}),
+      ...(data.propertyId !== undefined ? { property_id: data.propertyId } : {}),
     };
     const { error } = data.id
-      ? await supabase.from("maintenance_projects").update(row).eq("id", data.id)
+      ? await supabase
+          .from("maintenance_projects")
+          .update(row)
+          .eq("id", data.id)
+          .eq("organization_id", orgId)
       : await supabase.from("maintenance_projects").insert(row);
-    if (error) throw new Error(error.message);
+    if (error) throw dbError(error);
     return { ok: true };
   });
 
@@ -978,7 +1577,7 @@ export const getAdminSettings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabase = context.supabase as Db;
-    const { orgId } = await requireStaff(supabase, context.userId);
+    const { orgId } = await requirePermission(supabase, context.userId, "settings.edit");
     const [org, profiles, roles, properties] = await Promise.all([
       supabase.from("organizations").select("*").eq("id", orgId).maybeSingle(),
       supabase.from("profiles").select("id, full_name, email").eq("organization_id", orgId),
@@ -993,4 +1592,984 @@ export const getAdminSettings = createServerFn({ method: "GET" })
       })),
       propertyCount: properties.data?.length ?? 0,
     };
+  });
+
+/* ---------------------------- ENTREPRENÖR ---------------------------- */
+
+async function requireContractor(supabase: Db, userId: string) {
+  const me = await loadMe(supabase, userId);
+  if (!me.isContractor) throw new Error("Behörighet saknas");
+  const { data: companies } = await supabase
+    .from("contractors")
+    .select("id, company, contact_name, organization_id")
+    .eq("user_id", userId);
+  if (!companies || companies.length === 0)
+    throw new Error("Kontot är inte kopplat till en entreprenör");
+  return { me, companies };
+}
+
+export const getContractorJobs = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase as Db;
+    const { me, companies } = await requireContractor(supabase, context.userId);
+    const { data } = await supabase
+      .from("maintenance_requests")
+      .select(
+        "id, ticket_number, title, category, status, priority, is_urgent, room, created_at, updated_at, reporter_name, units(unit_number, address)",
+      )
+      .in(
+        "contractor_id",
+        companies.map((c) => c.id),
+      )
+      .order("updated_at", { ascending: false });
+    return { me, companies, jobs: data ?? [] };
+  });
+
+const stockholmTime = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "Europe/Stockholm",
+  day: "numeric",
+  month: "long",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+export const updateContractorJob = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      id,
+      status: z.enum(["booked", "in_progress", "resolved"]).optional(),
+      scheduledAt: z.string().datetime({ offset: true }).optional(),
+      note: longText.optional(),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { me, companies } = await requireContractor(supabase, context.userId);
+    const { data: job } = await supabase
+      .from("maintenance_requests")
+      .select("id, organization_id, contractor_id")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (!job || !companies.some((c) => c.id === job.contractor_id)) {
+      throw new Error("Uppdraget hittades inte");
+    }
+
+    const status = data.scheduledAt && !data.status ? "booked" : data.status;
+    if (status) {
+      const { error } = await supabase
+        .from("maintenance_requests")
+        .update({
+          status,
+          resolved_at: status === "resolved" ? new Date().toISOString() : null,
+        })
+        .eq("id", data.id);
+      if (error) throw dbError(error);
+    }
+
+    const company = companies.find((c) => c.id === job.contractor_id)?.company ?? "Entreprenören";
+    const labels: string[] = [];
+    if (data.scheduledAt)
+      labels.push(`Tid bokad: ${stockholmTime.format(new Date(data.scheduledAt))}`);
+    if (status === "in_progress") labels.push(`${company} har påbörjat arbetet`);
+    if (status === "resolved") labels.push(`${company} har markerat ärendet som åtgärdat`);
+    if (labels.length > 0) {
+      logFailure(
+        "Händelselogg",
+        await supabase.from("maintenance_events").insert(
+          labels.map((label) => ({
+            organization_id: job.organization_id,
+            request_id: data.id,
+            label,
+          })),
+        ),
+      );
+    }
+    if (data.note?.trim()) {
+      const { error } = await supabase.from("maintenance_comments").insert({
+        organization_id: job.organization_id,
+        request_id: data.id,
+        author_user_id: context.userId,
+        author_name: me.profile?.full_name ?? company,
+        author_role: "contractor",
+        body: data.note.trim(),
+      });
+      if (error) throw dbError(error);
+    }
+    if (labels.length > 0 || data.note?.trim()) {
+      await notifyReporter(
+        supabase,
+        data.id,
+        labels[0] ?? `Nytt meddelande från ${company}`,
+        data.note?.trim().slice(0, 200) || `${company} har uppdaterat ditt ärende.`,
+      );
+    }
+    return { ok: true };
+  });
+
+/* ------------------------------- MÖTEN ------------------------------- */
+
+const meetingType = z.enum(["annual", "extra", "info", "board"]);
+export type MeetingType = z.infer<typeof meetingType>;
+
+export const getAdminMeetings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "meetings.edit");
+    const [meetings, attendance] = await Promise.all([
+      supabase
+        .from("meetings")
+        .select("*")
+        .eq("organization_id", orgId)
+        .order("starts_at", { ascending: false }),
+      supabase
+        .from("meeting_attendance")
+        .select("meeting_id, attendee_name, status, created_at")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: true }),
+    ]);
+    return { meetings: meetings.data ?? [], attendance: attendance.data ?? [] };
+  });
+
+export const saveMeeting = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      id: id.optional(),
+      title: shortText.min(1),
+      meetingType,
+      startsAt: z.string().datetime({ offset: true }),
+      location: shortText.optional(),
+      agenda: longText.optional(),
+      motions: longText.optional(),
+      protocol: longText.optional(),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "meetings.edit");
+    const row = {
+      organization_id: orgId,
+      title: data.title,
+      meeting_type: data.meetingType,
+      starts_at: data.startsAt,
+      location: data.location || null,
+      agenda: data.agenda || null,
+      motions: data.motions || null,
+      protocol: data.protocol || null,
+    };
+    const { error } = data.id
+      ? await supabase.from("meetings").update(row).eq("id", data.id).eq("organization_id", orgId)
+      : await supabase.from("meetings").insert(row);
+    if (error) throw dbError(error);
+    if (!data.id) {
+      const when = new Intl.DateTimeFormat("sv-SE", {
+        timeZone: "Europe/Stockholm",
+        day: "numeric",
+        month: "long",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(data.startsAt));
+      await notifyMembers(supabase, orgId, context.userId, {
+        title: `Kallelse: ${data.title}`,
+        body: `${when}${data.location ? ` · ${data.location}` : ""}. Anmäl dig under Möten.`,
+        link: "/app/moten",
+      });
+    }
+    return { ok: true };
+  });
+
+export const deleteMeeting = createServerFn({ method: "POST" })
+  .inputValidator(byIdSchema)
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "meetings.edit");
+    const { error } = await supabase
+      .from("meetings")
+      .delete()
+      .eq("id", data.id)
+      .eq("organization_id", orgId);
+    if (error) throw dbError(error);
+    return { ok: true };
+  });
+
+/* --------------------------- BOENDE & LÄGENHETER --------------------------- */
+
+const tenure = z.enum(["owned", "rented"]);
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ogiltigt datum");
+const optionalEmail = z.union([z.literal(""), z.string().trim().email("Ogiltig e-post").max(200)]);
+
+export const updateResident = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      id,
+      residentName: shortText.min(1),
+      email: optionalEmail,
+      phone: z.string().trim().max(40),
+      tenure,
+      moveInDate: isoDate.optional(),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "residents.edit");
+    const { error } = await supabase
+      .from("residencies")
+      .update({
+        resident_name: data.residentName,
+        email: data.email || null,
+        phone: data.phone || null,
+        tenure: data.tenure,
+        ...(data.moveInDate ? { move_in_date: data.moveInDate } : {}),
+      })
+      .eq("id", data.id)
+      .eq("organization_id", orgId);
+    if (error) throw dbError(error);
+    return { ok: true };
+  });
+
+export const moveOutResident = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ id, moveOutDate: isoDate, vacateUnit: z.boolean() }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "residents.edit");
+    const { data: residency, error } = await supabase
+      .from("residencies")
+      .update({ status: "moved_out", move_out_date: data.moveOutDate, is_primary: false })
+      .eq("id", data.id)
+      .eq("organization_id", orgId)
+      .select("unit_id")
+      .single();
+    if (error) throw dbError(error);
+    const { data: left } = await supabase
+      .from("residencies")
+      .select("id, is_primary")
+      .eq("unit_id", residency.unit_id)
+      .eq("status", "active");
+    if (!left?.length) {
+      if (data.vacateUnit) {
+        await supabase.from("units").update({ status: "vacant" }).eq("id", residency.unit_id);
+      }
+    } else if (!left.some((r) => r.is_primary)) {
+      // Någon i hushållet blir primär boende när den primära flyttar ut.
+      await supabase.from("residencies").update({ is_primary: true }).eq("id", left[0]!.id);
+    }
+    return { ok: true };
+  });
+
+export const moveInResident = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      unitId: id,
+      residentName: shortText.min(1),
+      email: optionalEmail,
+      phone: z.string().trim().max(40),
+      tenure,
+      moveInDate: isoDate,
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "residents.edit");
+    const { data: created, error } = await supabase
+      .from("residencies")
+      .insert({
+        organization_id: orgId,
+        unit_id: data.unitId,
+        resident_name: data.residentName,
+        email: data.email || null,
+        phone: data.phone || null,
+        tenure: data.tenure,
+        move_in_date: data.moveInDate,
+      })
+      .select("id")
+      .single();
+    if (error) throw dbError(error);
+    await supabase.from("units").update({ status: "active" }).eq("id", data.unitId);
+    return { id: created.id };
+  });
+
+export const updateUnit = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      id,
+      monthlyAmount: z.number().min(0).max(1_000_000).nullable(),
+      sizeSqm: z.number().min(1).max(10_000).nullable(),
+      rooms: z.number().min(0).max(100).nullable(),
+      tenure,
+      status: z.enum(["active", "vacant", "renovation"]),
+      storage: z.string().trim().max(200),
+      parking: z.string().trim().max(200),
+      keyCount: z.number().int().min(0).max(100),
+      balcony: z.boolean(),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "properties.edit");
+    const { error } = await supabase
+      .from("units")
+      .update({
+        monthly_amount: data.monthlyAmount,
+        size_sqm: data.sizeSqm,
+        rooms: data.rooms,
+        tenure: data.tenure,
+        status: data.status,
+        storage: data.storage || null,
+        parking: data.parking || null,
+        key_count: data.keyCount,
+        balcony: data.balcony,
+      })
+      .eq("id", data.id)
+      .eq("organization_id", orgId);
+    if (error) throw dbError(error);
+    return { ok: true };
+  });
+
+export const updateMyContact = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ fullName: shortText.min(1), phone: z.string().trim().max(40) }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { error } = await supabase.rpc("update_my_contact", {
+      _full_name: data.fullName,
+      _phone: data.phone,
+    });
+    if (error) throw dbError(error);
+    return { ok: true };
+  });
+
+/* ------------------------------- EKONOMI ------------------------------- */
+
+const period = z.string().regex(/^\d{4}-\d{2}-01$/, "Ogiltig period");
+
+function lastDayOfMonth(periodStart: string) {
+  const [y, m] = periodStart.split("-").map(Number) as [number, number];
+  const d = new Date(Date.UTC(y, m, 0));
+  return d.toISOString().slice(0, 10);
+}
+
+/** Skapar avgifter/hyror för en månad för alla uthyrda lägenheter som saknar en. */
+export const createBilling = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ period }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "economy.edit");
+    const [{ data: units }, { data: existing }] = await Promise.all([
+      supabase
+        .from("units")
+        .select("id, tenure, monthly_amount")
+        .eq("organization_id", orgId)
+        .eq("status", "active"),
+      supabase
+        .from("payments")
+        .select("unit_id")
+        .eq("organization_id", orgId)
+        .eq("period", data.period),
+    ]);
+    const billed = new Set((existing ?? []).map((p) => p.unit_id));
+    const rows = (units ?? [])
+      .filter((u) => !billed.has(u.id))
+      .map((u) => ({
+        organization_id: orgId,
+        unit_id: u.id,
+        kind: u.tenure === "rented" ? "rent" : "fee",
+        period: data.period,
+        amount: Number(u.monthly_amount ?? 0),
+        due_date: lastDayOfMonth(data.period),
+        status: "unpaid",
+      }));
+    if (rows.length > 0) {
+      const { error } = await supabase.from("payments").insert(rows);
+      if (error) throw dbError(error);
+    }
+    return {
+      created: rows.length,
+      alreadyBilled: billed.size,
+      total: rows.reduce((sum, r) => sum + r.amount, 0),
+    };
+  });
+
+/** Markerar obetalda poster som påminda och skickar en notis till de boende. */
+export const sendReminders = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ ids: z.array(id).min(1).max(500) }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "economy.edit");
+    const { data: payments } = await supabase
+      .from("payments")
+      .select("id, unit_id, period, amount, due_date, kind, status")
+      .eq("organization_id", orgId)
+      .neq("status", "paid")
+      .in("id", data.ids);
+    if (!payments || payments.length === 0) return { reminded: 0, notified: 0 };
+
+    const { data: residents } = await supabase
+      .from("residencies")
+      .select("unit_id, user_id")
+      .eq("organization_id", orgId)
+      .eq("status", "active")
+      .in(
+        "unit_id",
+        payments.map((p) => p.unit_id),
+      )
+      .not("user_id", "is", null);
+
+    const month = new Intl.DateTimeFormat("sv-SE", { month: "long", year: "numeric" });
+    const notifications = payments.flatMap((p) =>
+      (residents ?? [])
+        .filter((r) => r.unit_id === p.unit_id)
+        .map((r) => ({
+          organization_id: orgId,
+          user_id: r.user_id!,
+          title: `Påminnelse: ${p.kind === "rent" ? "hyra" : "avgift"} för ${month.format(new Date(p.period))}`,
+          body: `Vi har inte fått betalt ${Number(p.amount).toLocaleString("sv-SE")} kr som förföll ${p.due_date}. Betala under Ekonomi.`,
+          link: "/app/ekonomi",
+        })),
+    );
+    const { error } = await supabase
+      .from("payments")
+      .update({ reminded_at: new Date().toISOString() })
+      .in(
+        "id",
+        payments.map((p) => p.id),
+      );
+    if (error) throw dbError(error);
+    if (notifications.length > 0) {
+      const { error: notifyError } = await supabase.from("notifications").insert(notifications);
+      if (notifyError) throw dbError(notifyError);
+      await deliverQueued();
+    }
+    return { reminded: payments.length, notified: notifications.length };
+  });
+
+/** Alla poster för en period, för export till CSV. */
+export const getPaymentsForPeriod = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ period }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "economy.view");
+    const { data: rows } = await supabase
+      .from("payments")
+      .select(
+        "period, kind, amount, due_date, status, paid_at, paid_via, reminded_at, units(address, unit_number, object_number, residencies(resident_name, status))",
+      )
+      .eq("organization_id", orgId)
+      .eq("period", data.period)
+      .order("unit_id");
+    return (rows ?? []).map((r) => ({
+      period: r.period,
+      address: r.units?.address ?? "",
+      unit: r.units?.unit_number ?? "",
+      objectNumber: r.units?.object_number ?? "",
+      resident:
+        r.units?.residencies
+          ?.filter((x) => x.status === "active")
+          .map((x) => x.resident_name)
+          .join(", ") ?? "",
+      kind: r.kind === "rent" ? "Hyra" : "Avgift",
+      amount: Number(r.amount),
+      dueDate: r.due_date,
+      status: r.status === "paid" ? "Betald" : "Obetald",
+      paidAt: r.paid_at?.slice(0, 10) ?? "",
+      paidVia: r.paid_via ?? "",
+      remindedAt: r.reminded_at?.slice(0, 10) ?? "",
+    }));
+  });
+
+export const payMyPayment = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ id, method: z.enum(["card", "swish", "bank"]) }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    requireFeature(await loadMe(supabase, context.userId), "economy");
+    const { error } = await supabase.rpc("pay_my_payment", {
+      _payment_id: data.id,
+      _method: data.method,
+    });
+    if (error) throw dbError(error);
+    return { ok: true };
+  });
+
+/* ---------------------------- INSTÄLLNINGAR ---------------------------- */
+
+export const updateOrganization = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      name: shortText.min(1, "Fyll i föreningens namn"),
+      orgType: z.enum(["brf", "rental", "manager"]),
+      contactEmail: optionalEmail,
+      contactPhone: z.string().trim().max(40),
+      emergencyPhone: z.string().trim().max(40),
+      address: shortText,
+      about: z.string().trim().max(4000),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "settings.edit");
+    const { error } = await supabase
+      .from("organizations")
+      .update({
+        name: data.name,
+        org_type: data.orgType,
+        contact_email: data.contactEmail || null,
+        contact_phone: data.contactPhone || null,
+        emergency_phone: data.emergencyPhone || null,
+        address: data.address || null,
+        about: data.about || null,
+      })
+      .eq("id", orgId);
+    if (error) throw dbError(error);
+    return { ok: true };
+  });
+
+export const updateWelcomeMessage = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ message: z.string().trim().max(4000) }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "settings.edit");
+    const { error } = await supabase
+      .from("organizations")
+      .update({ welcome_message: data.message || null })
+      .eq("id", orgId);
+    if (error) throw dbError(error);
+    return { ok: true };
+  });
+
+export type BrandMode = "platform" | "logo" | "text";
+
+export const updateBranding = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      mode: z.enum(["platform", "logo", "text"]),
+      name: z.string().trim().max(60, "Namnet får vara högst 60 tecken"),
+      logoPath: z
+        .string()
+        .regex(/^[0-9a-f-]{36}\/logo-[0-9a-f-]{36}\.(png|jpg|webp)$/, "Ogiltig logga")
+        .nullable(),
+      color: z
+        .string()
+        .regex(/^#[0-9a-f]{6}$/, "Välj en färg")
+        .nullable(),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "settings.edit");
+    if (data.logoPath && !data.logoPath.startsWith(`${orgId}/`)) throw new Error("Ogiltig logga");
+    if (data.mode === "logo" && !data.logoPath) throw new Error("Ladda upp en logga först");
+    if (data.mode === "text" && !data.name) throw new Error("Skriv namnet som ska visas");
+    const { error } = await supabase
+      .from("organizations")
+      .update({
+        brand_mode: data.mode,
+        brand_name: data.name || null,
+        brand_logo_path: data.logoPath,
+        brand_color: data.color,
+      })
+      .eq("id", orgId);
+    if (error) throw dbError(error);
+    return { ok: true };
+  });
+
+export const setMemberRole = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      userId: id,
+      role: z.enum([
+        "org_admin",
+        "property_manager",
+        "board_member",
+        "staff",
+        "contractor",
+        "resident",
+      ]),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    await requirePermission(supabase, context.userId, "settings.edit");
+    const { error } = await supabase.rpc("set_member_role", {
+      _user_id: data.userId,
+      _role: data.role,
+    });
+    if (error) throw dbError(error);
+    return { ok: true };
+  });
+
+/* ------------------------------- NOTISER ------------------------------- */
+
+export const getNotifications = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase as Db;
+    const { data } = await supabase
+      .from("notifications")
+      .select("id, title, body, link, is_read, created_at")
+      .eq("user_id", context.userId)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    const items = data ?? [];
+    return { items, unread: items.filter((n) => !n.is_read).length };
+  });
+
+export const markNotificationsRead = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ ids: z.array(id).max(100).optional() }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    let query = supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", context.userId)
+      .eq("is_read", false);
+    if (data.ids) query = query.in("id", data.ids);
+    const { error } = await query;
+    if (error) throw dbError(error);
+    return { ok: true };
+  });
+
+/* -------------------------------- FILER -------------------------------- */
+
+export const addRequestAttachments = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      requestId: id,
+      files: z
+        .array(
+          z.object({
+            storagePath: z.string().min(1).max(500),
+            fileName: shortText.min(1),
+            contentType: z.string().max(100),
+            sizeBytes: z
+              .number()
+              .int()
+              .min(0)
+              .max(10 * 1024 * 1024),
+          }),
+        )
+        .min(1)
+        .max(10),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { data: request } = await supabase
+      .from("maintenance_requests")
+      .select("id, organization_id")
+      .eq("id", data.requestId)
+      .maybeSingle();
+    if (!request) throw new Error("Ärendet hittades inte");
+    const { error } = await supabase.from("request_attachments").insert(
+      data.files.map((f) => ({
+        organization_id: request.organization_id,
+        request_id: request.id,
+        storage_path: f.storagePath,
+        file_name: f.fileName,
+        content_type: f.contentType,
+        size_bytes: f.sizeBytes,
+        uploaded_by: context.userId,
+      })),
+    );
+    if (error) throw dbError(error);
+    logFailure(
+      "Händelselogg",
+      await supabase.from("maintenance_events").insert({
+        organization_id: request.organization_id,
+        request_id: request.id,
+        label: data.files.length === 1 ? "Bild bifogad" : `${data.files.length} bilder bifogade`,
+      }),
+    );
+    return { ok: true };
+  });
+
+export const getAdminDocuments = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "documents.edit");
+    const [documents, properties, units] = await Promise.all([
+      supabase
+        .from("documents")
+        .select("*, properties(name), units(unit_number, address)")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false }),
+      supabase.from("properties").select("id, name").eq("organization_id", orgId).order("name"),
+      supabase
+        .from("units")
+        .select("id, unit_number, address")
+        .eq("organization_id", orgId)
+        .order("address")
+        .order("unit_number"),
+    ]);
+    return {
+      orgId,
+      documents: documents.data ?? [],
+      properties: properties.data ?? [],
+      units: units.data ?? [],
+    };
+  });
+
+export const saveDocument = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      title: shortText.min(1),
+      docType: z.string().trim().min(1).max(40),
+      scope: z.discriminatedUnion("kind", [
+        z.object({ kind: z.literal("organization") }),
+        z.object({ kind: z.literal("property"), propertyId: id }),
+        z.object({ kind: z.literal("unit"), unitId: id }),
+      ]),
+      storagePath: z.string().min(1).max(500),
+      fileKind: z.string().max(10),
+      fileSize: z.string().max(20),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "documents.edit");
+    const { error } = await supabase.from("documents").insert({
+      organization_id: orgId,
+      title: data.title,
+      doc_type: data.docType,
+      property_id: data.scope.kind === "property" ? data.scope.propertyId : null,
+      unit_id: data.scope.kind === "unit" ? data.scope.unitId : null,
+      storage_path: data.storagePath,
+      file_kind: data.fileKind,
+      file_size: data.fileSize,
+    });
+    if (error) throw dbError(error);
+    return { ok: true };
+  });
+
+export const deleteDocument = createServerFn({ method: "POST" })
+  .inputValidator(byIdSchema)
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "documents.edit");
+    const { data: doc, error } = await supabase
+      .from("documents")
+      .delete()
+      .eq("id", data.id)
+      .eq("organization_id", orgId)
+      .select("storage_path")
+      .maybeSingle();
+    if (error) throw dbError(error);
+    if (doc?.storage_path) await supabase.storage.from("files").remove([doc.storage_path]);
+    return { ok: true };
+  });
+
+/* ----------------------------- BESIKTNINGAR ----------------------------- */
+
+const inspectionKind = z.enum([
+  "periodic",
+  "move_in",
+  "move_out",
+  "ovk",
+  "elevator",
+  "fire",
+  "other",
+]);
+export type InspectionKind = z.infer<typeof inspectionKind>;
+const inspectionResult = z.enum(["approved", "remarks", "failed"]);
+export type InspectionResult = z.infer<typeof inspectionResult>;
+
+/** Aviserar de boende i en lägenhet, eller i hela fastigheten om ingen lägenhet anges. */
+async function notifyAffectedResidents(
+  supabase: Db,
+  orgId: string,
+  target: { unitId: string | null; propertyId: string },
+  notification: { title: string; body: string; link: string },
+) {
+  const query = supabase
+    .from("residencies")
+    .select("user_id, units!inner(id, buildings!inner(property_id))")
+    .eq("organization_id", orgId)
+    .eq("status", "active")
+    .not("user_id", "is", null);
+  const { data, error } = target.unitId
+    ? await query.eq("unit_id", target.unitId)
+    : await query.eq("units.buildings.property_id", target.propertyId);
+  if (error) throw dbError(error);
+  const userIds = [...new Set((data ?? []).map((r) => r.user_id as string))];
+  if (userIds.length === 0) return;
+  const { error: notifyError } = await supabase
+    .from("notifications")
+    .insert(userIds.map((user_id) => ({ organization_id: orgId, user_id, ...notification })));
+  if (notifyError) throw dbError(notifyError);
+  await deliverQueued();
+}
+
+export const getAdminInspections = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase as Db;
+    const { me, orgId } = await requirePermission(supabase, context.userId, "inspections.view");
+    const [inspections, properties, units] = await Promise.all([
+      supabase
+        .from("inspections")
+        .select("*, units(unit_number, address), properties(name)")
+        .eq("organization_id", orgId)
+        .order("scheduled_at", { ascending: true, nullsFirst: false }),
+      supabase.from("properties").select("id, name").eq("organization_id", orgId).order("name"),
+      supabase
+        .from("units")
+        .select("id, unit_number, address, buildings(property_id)")
+        .eq("organization_id", orgId)
+        .order("unit_number"),
+    ]);
+    if (inspections.error) throw dbError(inspections.error);
+    return {
+      inspections: inspections.data ?? [],
+      properties: properties.data ?? [],
+      units: (units.data ?? []).map((u) => ({
+        id: u.id,
+        label: `${u.unit_number} · ${u.address}`,
+        propertyId: u.buildings?.property_id ?? null,
+      })),
+      canEdit: me.permissions.includes("inspections.edit"),
+    };
+  });
+
+export const saveInspection = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      id: id.optional(),
+      kind: inspectionKind,
+      propertyId: id,
+      unitId: id.nullable(),
+      scheduledAt: z.string().datetime({ offset: true }),
+      inspectorName: shortText.optional(),
+      note: longText.optional(),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "inspections.edit");
+    const row = {
+      organization_id: orgId,
+      kind: data.kind,
+      property_id: data.propertyId,
+      unit_id: data.unitId,
+      scheduled_at: data.scheduledAt,
+      inspector_name: data.inspectorName || null,
+      note: data.note || null,
+    };
+    const { error } = data.id
+      ? await supabase
+          .from("inspections")
+          .update(row)
+          .eq("id", data.id)
+          .eq("organization_id", orgId)
+      : await supabase.from("inspections").insert(row);
+    if (error) throw dbError(error);
+
+    const when = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Europe/Stockholm",
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(data.scheduledAt));
+    await notifyAffectedResidents(
+      supabase,
+      orgId,
+      { unitId: data.unitId, propertyId: data.propertyId },
+      {
+        title: data.id ? "Ändrad tid för besiktning" : "Besiktning planerad",
+        body: `${inspectionKindLabels[data.kind]} ${when}.${data.note ? ` ${data.note}` : ""}`.slice(
+          0,
+          1000,
+        ),
+        link: "/app/boende",
+      },
+    );
+    return { ok: true };
+  });
+
+export const completeInspection = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      id,
+      result: inspectionResult,
+      protocol: longText.optional(),
+      inspectorName: shortText.optional(),
+    }),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "inspections.edit");
+    const { data: before } = await supabase
+      .from("inspections")
+      .select("status")
+      .eq("id", data.id)
+      .eq("organization_id", orgId)
+      .maybeSingle();
+    if (!before) throw new Error("Besiktningen hittades inte");
+    // Ett ändrat protokoll behåller datumet och aviseras inte igen.
+    const firstTime = before.status !== "completed";
+    const { data: inspection, error } = await supabase
+      .from("inspections")
+      .update({
+        status: "completed",
+        ...(firstTime ? { completed_at: new Date().toISOString() } : {}),
+        result: data.result,
+        protocol: data.protocol || null,
+        ...(data.inspectorName ? { inspector_name: data.inspectorName } : {}),
+      })
+      .eq("id", data.id)
+      .eq("organization_id", orgId)
+      .select("kind, unit_id, property_id")
+      .maybeSingle();
+    if (error) throw dbError(error);
+    if (!inspection) throw new Error("Besiktningen hittades inte");
+    if (firstTime && inspection.unit_id && inspection.property_id) {
+      await notifyAffectedResidents(
+        supabase,
+        orgId,
+        { unitId: inspection.unit_id, propertyId: inspection.property_id },
+        {
+          title: "Protokoll från besiktningen",
+          body: `${inspectionKindLabels[inspection.kind as InspectionKind] ?? "Besiktningen"} är klar: ${inspectionResultLabels[data.result].toLowerCase()}.`,
+          link: "/app/boende",
+        },
+      );
+    }
+    return { ok: true };
+  });
+
+export const cancelInspection = createServerFn({ method: "POST" })
+  .inputValidator(byIdSchema)
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "inspections.edit");
+    const { error } = await supabase
+      .from("inspections")
+      .update({ status: "cancelled" })
+      .eq("id", data.id)
+      .eq("organization_id", orgId);
+    if (error) throw dbError(error);
+    return { ok: true };
   });

@@ -3,8 +3,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useCan } from "@/lib/use-can";
 
 import { getContractors, saveContractor } from "@/lib/app.functions";
+import { deleteContractor } from "@/lib/manage.functions";
+import { errorMessage } from "@/lib/errors";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { PageHeader, Panel, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { StatusPill } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -45,11 +49,14 @@ const emptyDraft: Draft = {
 
 function AdminContractors() {
   const fn = useServerFn(getContractors);
+  const can = useCan();
   const saveFn = useServerFn(saveContractor);
+  const deleteFn = useServerFn(deleteContractor);
   const queryClient = useQueryClient();
   const { data, isPending } = useQuery({ queryKey: ["admin-contractors"], queryFn: () => fn() });
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const save = useMutation({
     mutationFn: () => saveFn({ data: draft }),
@@ -59,7 +66,19 @@ function AdminContractors() {
       setDraft(emptyDraft);
       await queryClient.invalidateQueries({ queryKey: ["admin-contractors"] });
     },
-    onError: () => toast.error("Kunde inte spara entreprenören"),
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+
+  const remove = useMutation({
+    mutationFn: (contractorId: string) => deleteFn({ data: { id: contractorId } }),
+    onSuccess: async () => {
+      toast.success("Entreprenören är borttagen");
+      setConfirmDelete(false);
+      setOpen(false);
+      setDraft(emptyDraft);
+      await queryClient.invalidateQueries({ queryKey: ["admin-contractors"] });
+    },
+    onError: (e) => toast.error(errorMessage(e)),
   });
 
   function edit(c: NonNullable<typeof data>["contractors"][number]) {
@@ -93,9 +112,11 @@ function AdminContractors() {
               if (!v) setDraft(emptyDraft);
             }}
           >
-            <DialogTrigger asChild>
-              <Button>Ny entreprenör</Button>
-            </DialogTrigger>
+            {can("contractors.edit") ? (
+              <DialogTrigger asChild>
+                <Button>Ny entreprenör</Button>
+              </DialogTrigger>
+            ) : null}
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>{draft.id ? "Redigera entreprenör" : "Ny entreprenör"}</DialogTitle>
@@ -154,12 +175,23 @@ function AdminContractors() {
                   />
                 </div>
               </div>
-              <DialogFooter>
+              <DialogFooter className="gap-2 sm:justify-between">
+                {draft.id ? (
+                  <Button
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    Ta bort entreprenören
+                  </Button>
+                ) : (
+                  <span />
+                )}
                 <Button
                   disabled={!draft.company.trim() || save.isPending}
                   onClick={() => save.mutate()}
                 >
-                  Spara
+                  {save.isPending ? "Sparar…" : "Spara"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -189,14 +221,35 @@ function AdminContractors() {
                 <StatusPill tone={openCountFor(c.id) > 0 ? "info" : "neutral"}>
                   {openCountFor(c.id)} pågående
                 </StatusPill>
-                <Button size="sm" variant="outline" onClick={() => edit(c)}>
-                  Redigera
-                </Button>
+                {can("contractors.edit") ? (
+                  <Button size="sm" variant="outline" onClick={() => edit(c)}>
+                    Redigera
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>
         </Panel>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Ta bort ${draft.company || "entreprenören"}?`}
+        pending={remove.isPending}
+        onConfirm={() => draft.id && remove.mutate(draft.id)}
+        description={
+          <>
+            <p>Entreprenören försvinner från listan. Det går inte att ångra.</p>
+            {draft.id && openCountFor(draft.id) > 0 ? (
+              <p className="font-medium text-foreground">
+                {openCountFor(draft.id)} pågående ärenden blir utan entreprenör och behöver
+                tilldelas någon annan.
+              </p>
+            ) : null}
+          </>
+        }
+      />
     </div>
   );
 }

@@ -5,17 +5,22 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { addRequestComment, getRequestDetail } from "@/lib/app.functions";
+import { RequestAttachments } from "@/components/request-attachments";
 import { DataRow, LoadingBlock, PageHeader, Panel } from "@/components/ui-kit";
-import { PriorityBadge, RequestStatusBadge } from "@/components/status-badge";
-import { dateTime } from "@/lib/format";
+import { PriorityBadge, RequestProgress } from "@/components/status-badge";
+import { authorRoleLabel, dateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/app/felanmalan/$id")({
   head: () => ({
     meta: [
       { title: "Mitt ärende – Boendeplattformen" },
-      { name: "description", content: "Följ ditt ärende: status, tidslinje och svar från förvaltningen." },
+      {
+        name: "description",
+        content: "Följ ditt ärende: status, tidslinje och svar från förvaltningen.",
+      },
       { property: "og:title", content: "Mitt ärende – Boendeplattformen" },
       { property: "og:description", content: "Följ status och kommunikation för ditt ärende." },
     ],
@@ -43,7 +48,7 @@ function RequestPage() {
       void qc.invalidateQueries({ queryKey: ["request", id] });
       void qc.invalidateQueries({ queryKey: ["my-requests"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(errorMessage(e)),
   });
 
   if (isPending || !data) return <LoadingBlock rows={4} />;
@@ -55,18 +60,17 @@ function RequestPage() {
         to="/app/felanmalan"
         className="mb-4 inline-block text-sm text-muted-foreground hover:text-foreground"
       >
-        ← Tillbaka till mina ärenden
+        ← Tillbaka till mina felanmälningar
       </Link>
       <PageHeader
         title={r.title}
         subtitle={`Ärende #${r.ticket_number} · ${r.category}${r.room ? ` · ${r.room}` : ""}`}
-        action={
-          <div className="flex items-center gap-2">
-            <PriorityBadge priority={r.priority} />
-            <RequestStatusBadge status={r.status} />
-          </div>
-        }
+        action={<PriorityBadge priority={r.priority} />}
       />
+
+      <Panel title="Så långt har det kommit" className="mb-5">
+        <RequestProgress status={r.status} />
+      </Panel>
 
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
@@ -75,6 +79,8 @@ function RequestPage() {
               {r.description || "Ingen beskrivning lämnad."}
             </p>
           </Panel>
+
+          <RequestAttachments request={r} attachments={data.attachments} canUpload={true} />
 
           <Panel title="Tidslinje">
             <ol className="space-y-4">
@@ -104,8 +110,7 @@ function RequestPage() {
                   <p className="text-xs font-medium">
                     {c.author_name}{" "}
                     <span className="text-muted-foreground">
-                      · {c.author_role === "resident" ? "Boende" : "Förvaltning"} ·{" "}
-                      {dateTime(c.created_at)}
+                      · {authorRoleLabel(c.author_role)} · {dateTime(c.created_at)}
                     </span>
                   </p>
                   <p className="mt-1.5 text-sm whitespace-pre-line">{c.body}</p>
@@ -125,7 +130,7 @@ function RequestPage() {
                   disabled={!body.trim() || mutation.isPending}
                   onClick={() => mutation.mutate(undefined)}
                 >
-                  Skicka
+                  Skicka meddelande
                 </Button>
                 <Button
                   variant="outline"
@@ -153,9 +158,7 @@ function RequestPage() {
             <DataRow label="Akut" value={r.is_urgent ? "Ja" : "Nej"} />
             <DataRow label="Ansvarig" value={r.assignee_name ?? "Inte tilldelat"} />
             <DataRow label="Entreprenör" value={r.contractors?.company ?? "–"} />
-            {r.contractors?.phone ? (
-              <DataRow label="Telefon" value={r.contractors.phone} />
-            ) : null}
+            {r.contractors?.phone ? <DataRow label="Telefon" value={r.contractors.phone} /> : null}
             <DataRow
               label="Bostad"
               value={r.units ? `${r.units.unit_number} · ${r.units.address}` : "–"}

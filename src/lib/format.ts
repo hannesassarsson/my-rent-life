@@ -5,14 +5,18 @@ export function kr(amount: number | string | null | undefined) {
 
 export function dateLong(value: string | Date | null | undefined) {
   if (!value) return "–";
-  return new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "long", year: "numeric" }).format(
-    new Date(value),
-  );
+  return new Intl.DateTimeFormat("sv-SE", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(value));
 }
 
 export function dateShort(value: string | Date | null | undefined) {
   if (!value) return "–";
-  return new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short" }).format(
+    new Date(value),
+  );
 }
 
 export function dateTime(value: string | Date | null | undefined) {
@@ -78,6 +82,36 @@ export const categoryLabels = [
   { value: "Annat", icon: "🧩" },
 ];
 
+/** Kategorier för nyheter; okända koder visas aldrig rått. */
+export const announcementCategoryLabels: Record<string, string> = {
+  info: "Information",
+  news: "Nyheter",
+  operations: "Drift",
+  maintenance: "Underhåll",
+  disruption: "Driftstörning",
+  event: "Händelse",
+};
+
+export function announcementCategory(code: string | null | undefined) {
+  return (code && announcementCategoryLabels[code]) || "Information";
+}
+
+/** Öppettider i vanlig svenska, t.ex. "Hela dygnet" eller "06–22". */
+export function openHoursLabel(from: string, to: string) {
+  if (from.slice(0, 5) === "00:00" && to.slice(0, 5) >= "23:59") return "Hela dygnet";
+  const t = (v: string) => (v.slice(3, 5) === "00" ? v.slice(0, 2) : v.slice(0, 5));
+  return `Kl. ${t(from)}–${t(to)}`;
+}
+
+/** Hur långt ett bokningspass är, t.ex. "2 timmar per pass". */
+export function slotLengthLabel(minutes: number) {
+  if (minutes % 1440 === 0)
+    return minutes === 1440 ? "1 dygn per bokning" : `${minutes / 1440} dygn per bokning`;
+  if (minutes % 60 === 0)
+    return minutes === 60 ? "1 timme per pass" : `${minutes / 60} timmar per pass`;
+  return `${minutes} minuter per pass`;
+}
+
 export const resourceKindLabels: Record<string, string> = {
   laundry: "Tvättstuga",
   sauna: "Bastu",
@@ -110,3 +144,26 @@ export const docTypeLabels: Record<string, string> = {
 export function docTypeLabel(type: string) {
   return docTypeLabels[type] ?? type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ");
 }
+
+export function authorRoleLabel(role: string) {
+  if (role === "resident") return "Boende";
+  if (role === "contractor") return "Entreprenör";
+  if (role === "board_member") return "Styrelsen";
+  return "Förvaltning";
+}
+
+export const inspectionKindLabels = {
+  periodic: "Lägenhetsbesiktning",
+  move_in: "Inflyttningsbesiktning",
+  move_out: "Avflyttningsbesiktning",
+  ovk: "OVK (ventilation)",
+  elevator: "Hissbesiktning",
+  fire: "Brandskyddskontroll",
+  other: "Övrig besiktning",
+} as const;
+
+export const inspectionResultLabels = {
+  approved: "Godkänd",
+  remarks: "Godkänd med anmärkningar",
+  failed: "Underkänd",
+} as const;

@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { FileText, Link2, Megaphone, UserPlus, Wrench } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
@@ -6,6 +7,7 @@ import { getAdminOverview } from "@/lib/app.functions";
 import { Kpi, Panel, LoadingBlock, EmptyState, PageHeader } from "@/components/ui-kit";
 import { ProjectStatusBadge, StatusPill } from "@/components/status-badge";
 import { dateLong, kr } from "@/lib/format";
+import { useCan } from "@/lib/use-can";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   component: AdminOverview,
@@ -13,7 +15,11 @@ export const Route = createFileRoute("/_authenticated/admin/")({
 
 function AdminOverview() {
   const fn = useServerFn(getAdminOverview);
-  const { data, isPending, error } = useQuery({ queryKey: ["admin-overview"], queryFn: () => fn() });
+  const can = useCan();
+  const { data, isPending, error } = useQuery({
+    queryKey: ["admin-overview"],
+    queryFn: () => fn(),
+  });
 
   if (error) {
     return (
@@ -33,11 +39,17 @@ function AdminOverview() {
     <div>
       <PageHeader title="Översikt" subtitle={data.me.organization?.name ?? undefined} />
 
+      <QuickActions can={can} />
+
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
-          label="Lägenheter"
-          value={data.units.total}
-          hint={`${data.units.active} aktiva`}
+          label="Boende"
+          value={data.residents.total}
+          hint={`${data.residents.withAccount} har konto · ${data.units.total} lägenheter${
+            data.residents.pendingInvitations
+              ? ` · ${data.residents.pendingInvitations} inbjudna`
+              : ""
+          }`}
         />
         <Kpi
           label="Felanmälningar"
@@ -45,21 +57,28 @@ function AdminOverview() {
           tone={data.requests.urgent > 0 ? "warning" : "default"}
           hint={`${data.requests.newToday} nya idag · ${data.requests.urgent} akuta`}
         />
-        <Kpi
-          label="Betalningsgrad"
-          value={`${data.economy.paidShare.toString().replace(".", ",")} %`}
-          tone="success"
-          hint={`${data.economy.unpaid} obetalda · ${kr(data.economy.billed)} fakturerat`}
-        />
-        <Kpi
-          label="Kommunikation"
-          value={data.drafts.length}
-          hint="opublicerade meddelanden"
-        />
+        {data.economy ? (
+          <Kpi
+            label="Betalningsgrad"
+            value={`${data.economy.paidShare.toString().replace(".", ",")} %`}
+            tone="success"
+            hint={`${data.economy.unpaid} obetalda · ${kr(data.economy.billed)} fakturerat`}
+          />
+        ) : (
+          <Kpi
+            label="Bokningar"
+            value={data.bookings.occupancy.length}
+            hint="bokningsbara resurser"
+          />
+        )}
+        <Kpi label="Utkast" value={data.drafts.length} hint="nyheter som inte är publicerade" />
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <Panel title="Vad behöver jag veta idag?" description="AI-assistent">
+        <Panel
+          title="Vad behöver jag veta idag?"
+          description="Räknas fram från föreningens uppgifter just nu"
+        >
           <ul className="space-y-3 text-sm">
             {data.requests.stale > 0 ? (
               <li className="flex items-start gap-3">
@@ -67,7 +86,7 @@ function AdminOverview() {
                 <span>{data.requests.stale} felanmälningar har väntat längre än 7 dagar.</span>
               </li>
             ) : null}
-            {data.economy.unpaid > 0 ? (
+            {data.economy && data.economy.unpaid > 0 ? (
               <li className="flex items-start gap-3">
                 <StatusPill tone="warning">Ekonomi</StatusPill>
                 <span>{data.economy.unpaid} avgifter eller hyror är obetalda denna period.</span>
@@ -90,8 +109,8 @@ function AdminOverview() {
             <li className="flex items-start gap-3">
               <StatusPill tone="info">Ärenden</StatusPill>
               <span>
-                Genomsnittlig lösningstid är {String(data.requests.avgResolutionDays).replace(".", ",")}{" "}
-                dagar.
+                Genomsnittlig lösningstid är{" "}
+                {String(data.requests.avgResolutionDays).replace(".", ",")} dagar.
               </span>
             </li>
           </ul>
@@ -111,7 +130,10 @@ function AdminOverview() {
                       <span className="text-muted-foreground tnum">{share} %</span>
                     </div>
                     <div className="mt-1.5 h-1.5 rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${share}%` }} />
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{ width: `${share}%` }}
+                      />
                     </div>
                   </li>
                 );
@@ -120,7 +142,10 @@ function AdminOverview() {
           )}
         </Panel>
 
-        <Panel title="Beläggning bokningsresurser">
+        <Panel
+          title="Hur mycket lokalerna bokas"
+          description="Andel bokade tider de senaste 30 dagarna"
+        >
           <ul className="space-y-3">
             {data.bookings.occupancy.map((o) => (
               <li key={o.id}>
@@ -157,5 +182,43 @@ function AdminOverview() {
         </Panel>
       </div>
     </div>
+  );
+}
+
+type Can = ReturnType<typeof useCan>;
+
+/** De vanligaste uppgifterna, som stora knappar med text. */
+function QuickActions({ can }: { can: Can }) {
+  const actions = [
+    can("residents.edit") && {
+      to: "/admin/boende",
+      icon: UserPlus,
+      label: "Lägg till boende",
+    },
+    can("residents.edit") && { to: "/admin/lagenheter", icon: Link2, label: "Bjud in boende" },
+    can("communication.edit") && {
+      to: "/admin/kommunikation",
+      icon: Megaphone,
+      label: "Publicera en nyhet",
+    },
+    can("requests.view") && { to: "/admin/arenden", icon: Wrench, label: "Se felanmälningar" },
+    can("documents.edit") && { to: "/admin/dokument", icon: FileText, label: "Lägg upp dokument" },
+  ].filter(Boolean) as { to: string; icon: typeof UserPlus; label: string }[];
+  if (actions.length === 0) return null;
+  return (
+    <nav aria-label="Snabbval" className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {actions.slice(0, 4).map((a) => (
+        <Link
+          key={a.label}
+          to={a.to}
+          className="card-surface flex min-h-14 items-center gap-3 px-4 py-3 text-base font-medium transition hover:border-primary"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
+            <a.icon className="size-5" />
+          </span>
+          {a.label}
+        </Link>
+      ))}
+    </nav>
   );
 }
