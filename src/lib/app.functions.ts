@@ -560,7 +560,7 @@ export const getAnnouncements = createServerFn({ method: "GET" })
     const supabase = context.supabase as Db;
     const { data } = await supabase
       .from("announcements")
-      .select("*, properties(name)")
+      .select("*, properties(name), buildings(name)")
       .eq("is_published", true)
       .order("published_at", { ascending: false });
     return data ?? [];
@@ -1237,6 +1237,60 @@ export const getAdminAnnouncements = createServerFn({ method: "GET" })
     };
   });
 
+/** En riktad nyhet måste ha en fastighet i föreningen, och ett hus i den fastigheten. */
+async function checkAudience(
+  supabase: Db,
+  orgId: string,
+  scope: AudienceScope,
+  propertyId: string | null,
+  buildingId: string | null,
+) {
+  if (scope === "organization") return { propertyId: null, buildingId: null };
+  if (!propertyId) throw new Error("Välj vilken fastighet nyheten gäller.");
+  const { data: property } = await supabase
+    .from("properties")
+    .select("id")
+    .eq("id", propertyId)
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  if (!property) throw new Error("Fastigheten finns inte i föreningen.");
+  if (scope === "property") return { propertyId, buildingId: null };
+  if (!buildingId) throw new Error("Välj vilket hus nyheten gäller.");
+  const { data: building } = await supabase
+    .from("buildings")
+    .select("id")
+    .eq("id", buildingId)
+    .eq("property_id", propertyId)
+    .maybeSingle();
+  if (!building) throw new Error("Huset finns inte i den valda fastigheten.");
+  return { propertyId, buildingId };
+}
+
+/** Notis till boende när en nyhet publiceras; bara första gången, inte vid ändringar. */
+async function notifyAnnouncement(
+  supabase: Db,
+  orgId: string,
+  userId: string,
+  a: { title: string; body: string },
+) {
+  await notifyMembers(supabase, orgId, userId, {
+    title: `Ny information: ${a.title}`,
+    body: a.body.slice(0, 200),
+    link: "/app/information",
+  });
+}
+
+async function findAnnouncement(supabase: Db, orgId: string, announcementId: string) {
+  const { data } = await supabase
+    .from("announcements")
+    .select("id, title, body, is_published, published_at")
+    .eq("id", announcementId)
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  if (!data) throw new Error("Nyheten finns inte längre.");
+  return data;
+}
+
 export const saveAnnouncement = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
@@ -1247,6 +1301,7 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
       audienceScope,
       propertyId: id.nullable().optional(),
       buildingId: id.nullable().optional(),
+      isPinned: z.boolean().optional(),
       publish: z.boolean(),
     }),
   )
@@ -1254,28 +1309,40 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
     const { orgId } = await requirePermission(supabase, context.userId, "communication.edit");
+    if (data.publish && !data.body.trim()) throw new Error("Skriv en text innan du publicerar.");
+    const audience = await checkAudience(
+      supabase,
+      orgId,
+      data.audienceScope,
+      data.propertyId ?? null,
+      data.buildingId ?? null,
+    );
+    const before = data.id ? await findAnnouncement(supabase, orgId, data.id) : null;
+    const now = new Date().toISOString();
+    const firstPublish = data.publish && !before?.is_published;
     const row = {
       organization_id: orgId,
-      title: data.title,
+      title: data.title.trim(),
       body: data.body,
       category: data.category,
       audience_scope: data.audienceScope,
-      property_id: data.propertyId ?? null,
-      building_id: data.buildingId ?? null,
+      property_id: audience.propertyId,
+      building_id: audience.buildingId,
+      is_pinned: data.isPinned ?? false,
       is_published: data.publish,
-      published_at: data.publish ? new Date().toISOString() : null,
+      // Publiceringsdatumet står kvar när en publicerad nyhet ändras.
+      published_at: data.publish ? (firstPublish ? now : (before?.published_at ?? now)) : null,
+      updated_at: before?.is_published && data.publish ? now : null,
     };
-    const { error } = data.id
-      ? await supabase.from("announcements").update(row).eq("id", data.id)
+    const { error } = before
+      ? await supabase
+          .from("announcements")
+          .update(row)
+          .eq("id", before.id)
+          .eq("organization_id", orgId)
       : await supabase.from("announcements").insert(row);
     if (error) throw dbError(error);
-    if (data.publish) {
-      await notifyMembers(supabase, orgId, context.userId, {
-        title: `Ny information: ${data.title}`,
-        body: data.body.slice(0, 200),
-        link: "/app/information",
-      });
-    }
+    if (firstPublish) await notifyAnnouncement(supabase, orgId, context.userId, row);
     return { ok: true };
   });
 
@@ -1284,15 +1351,55 @@ export const publishAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    await requirePermission(supabase, context.userId, "communication.edit");
+    const { orgId } = await requirePermission(supabase, context.userId, "communication.edit");
+    const before = await findAnnouncement(supabase, orgId, data.id);
+    if (before.is_published === data.publish) return { ok: true };
+    if (data.publish && !before.body.trim()) throw new Error("Skriv en text innan du publicerar.");
     const { error } = await supabase
       .from("announcements")
       .update({
         is_published: data.publish,
         published_at: data.publish ? new Date().toISOString() : null,
+        updated_at: null,
       })
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .eq("organization_id", orgId);
     if (error) throw dbError(error);
+    if (data.publish) await notifyAnnouncement(supabase, orgId, context.userId, before);
+    return { ok: true };
+  });
+
+export const pinAnnouncement = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ id, pinned: z.boolean() }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "communication.edit");
+    const { data: rows, error } = await supabase
+      .from("announcements")
+      .update({ is_pinned: data.pinned })
+      .eq("id", data.id)
+      .eq("organization_id", orgId)
+      .select("id");
+    if (error) throw dbError(error);
+    if (!rows?.length) throw new Error("Nyheten finns inte längre.");
+    return { ok: true };
+  });
+
+export const deleteAnnouncement = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ id }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    const { orgId } = await requirePermission(supabase, context.userId, "communication.edit");
+    const { data: rows, error } = await supabase
+      .from("announcements")
+      .delete()
+      .eq("id", data.id)
+      .eq("organization_id", orgId)
+      .select("id");
+    if (error) throw dbError(error);
+    if (!rows?.length) throw new Error("Nyheten finns inte längre.");
     return { ok: true };
   });
 

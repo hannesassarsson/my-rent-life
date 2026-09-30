@@ -71,7 +71,12 @@ function InformationPage() {
                   <h2 className="text-base font-semibold">{a.title}</h2>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {announcementCategory(a.category)} · {dateLong(a.published_at)}
-                    {a.properties?.name ? ` · ${a.properties.name}` : ""}
+                    {a.audience_scope === "building" && a.buildings?.name
+                      ? ` · Hus ${a.buildings.name}`
+                      : a.properties?.name
+                        ? ` · ${a.properties.name}`
+                        : ""}
+                    {a.updated_at ? ` · Uppdaterad ${dateLong(a.updated_at)}` : ""}
                   </p>
                 </div>
                 {a.is_pinned ? <StatusPill tone="info">Viktigt</StatusPill> : null}

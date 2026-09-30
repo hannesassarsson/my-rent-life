@@ -191,6 +191,7 @@ export type Database = {
           published_at: string | null;
           title: string;
           unit_ids: string[] | null;
+          updated_at: string | null;
         };
         Insert: {
           audience_scope?: string;
@@ -206,6 +207,7 @@ export type Database = {
           published_at?: string | null;
           title: string;
           unit_ids?: string[] | null;
+          updated_at?: string | null;
         };
         Update: {
           audience_scope?: string;
@@ -221,6 +223,7 @@ export type Database = {
           published_at?: string | null;
           title?: string;
           unit_ids?: string[] | null;
+          updated_at?: string | null;
         };
         Relationships: [
           {
