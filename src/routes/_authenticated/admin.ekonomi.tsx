@@ -12,6 +12,7 @@ import {
   markPaymentPaid,
   sendReminders,
 } from "@/lib/app.functions";
+import { markPaymentUnpaid } from "@/lib/manage.functions";
 import { PageHeader, Panel, Kpi, LoadingBlock, EmptyState } from "@/components/ui-kit";
 import { PaymentStatusBadge } from "@/components/status-badge";
 import { kr, dateLong, monthName } from "@/lib/format";
@@ -68,6 +69,7 @@ function download(filename: string, content: string) {
 function AdminEconomy() {
   const fn = useServerFn(getAdminEconomy);
   const markFn = useServerFn(markPaymentPaid);
+  const unmarkFn = useServerFn(markPaymentUnpaid);
   const billingFn = useServerFn(createBilling);
   const remindFn = useServerFn(sendReminders);
   const exportFn = useServerFn(getPaymentsForPeriod);
@@ -78,13 +80,26 @@ function AdminEconomy() {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["admin-economy"] });
 
-  const mark = useMutation({
-    mutationFn: (id: string) => markFn({ data: { id } }),
+  const unmark = useMutation({
+    mutationFn: (id: string) => unmarkFn({ data: { id } }),
     onSuccess: async () => {
-      toast.success("Betalningen är markerad som betald");
+      toast.success("Betalningen är obetald igen");
       await refresh();
     },
-    onError: () => toast.error("Kunde inte uppdatera betalningen"),
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+
+  const mark = useMutation({
+    mutationFn: (id: string) => markFn({ data: { id } }),
+    onSuccess: async (_r, id) => {
+      // Ett felklick går att ångra direkt från notisen.
+      toast.success("Betalningen är markerad som betald", {
+        duration: 8000,
+        action: { label: "Ångra", onClick: () => unmark.mutate(id) },
+      });
+      await refresh();
+    },
+    onError: (e) => toast.error(errorMessage(e)),
   });
 
   const billing = useMutation({

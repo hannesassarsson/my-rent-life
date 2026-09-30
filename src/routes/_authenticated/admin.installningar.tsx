@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { getAdminSettings, getMe, setMemberRole } from "@/lib/app.functions";
@@ -9,6 +10,9 @@ import { StatusPill } from "@/components/status-badge";
 import { DeliveryAdmin } from "@/components/delivery-admin";
 import { ASSIGNABLE_ROLES, ROLE_LABELS } from "@/lib/permissions";
 import { errorMessage } from "@/lib/errors";
+import { removeMember } from "@/lib/manage.functions";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -38,6 +42,8 @@ function AdminSettings() {
   const fn = useServerFn(getAdminSettings);
   const meFn = useServerFn(getMe);
   const roleFn = useServerFn(setMemberRole);
+  const removeFn = useServerFn(removeMember);
+  const [removing, setRemoving] = useState<{ id: string; name: string } | null>(null);
   const qc = useQueryClient();
   const { data, isPending } = useQuery({ queryKey: ["admin-settings"], queryFn: () => fn() });
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: () => meFn() });
@@ -50,6 +56,20 @@ function AdminSettings() {
       void qc.invalidateQueries({ queryKey: ["audit-log"] });
     },
     onError: (e) => toast.error(errorMessage(e)),
+  });
+
+  const remove = useMutation({
+    mutationFn: (userId: string) => removeFn({ data: { userId } }),
+    onSuccess: () => {
+      toast.success("Kontot är borttaget från föreningen");
+      setRemoving(null);
+      void qc.invalidateQueries({ queryKey: ["admin-settings"] });
+      void qc.invalidateQueries({ queryKey: ["audit-log"] });
+    },
+    onError: (e) => {
+      setRemoving(null);
+      toast.error(errorMessage(e), { duration: 8000 });
+    },
   });
 
   return (
@@ -123,6 +143,18 @@ function AdminSettings() {
                           </SelectContent>
                         </Select>
                       )}
+                      {isMe ? null : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() =>
+                            setRemoving({ id: m.id, name: m.full_name ?? m.email ?? "kontot" })
+                          }
+                        >
+                          Ta bort
+                        </Button>
+                      )}
                     </li>
                   );
                 })}
@@ -149,6 +181,24 @@ function AdminSettings() {
       <div className="mt-6">
         <DeliveryAdmin />
       </div>
+
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(v) => !v && setRemoving(null)}
+        title={`Ta bort ${removing?.name ?? "kontot"} från föreningen?`}
+        confirmLabel="Ta bort från föreningen"
+        pending={remove.isPending}
+        onConfirm={() => removing && remove.mutate(removing.id)}
+        description={
+          <>
+            <p>
+              Personen förlorar åtkomsten till föreningen och dess digitala nycklar återkallas.
+              Kontot och historiken finns kvar, så personen kan bjudas in igen.
+            </p>
+            <p>Boende tas inte bort här. Flytta i stället ut dem från lägenhetens sida.</p>
+          </>
+        }
+      />
     </div>
   );
 }

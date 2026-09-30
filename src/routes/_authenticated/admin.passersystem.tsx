@@ -21,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { dateLong } from "@/lib/format";
+import { deleteDoor } from "@/lib/manage.functions";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/admin/passersystem")({
@@ -93,11 +95,13 @@ function AccessAdminPage() {
   const saveDoorFn = useServerFn(saveDoor);
   const issueFn = useServerFn(issueKey);
   const revokeFn = useServerFn(revokeKey);
+  const deleteDoorFn = useServerFn(deleteDoor);
   const qc = useQueryClient();
   const { data, isPending } = useQuery({ queryKey: ["access-admin"], queryFn: () => fn() });
   const [doorDraft, setDoorDraft] = useState<DoorDraft | null>(null);
   const [keyDraft, setKeyDraft] = useState<KeyDraft | null>(null);
   const [onlyDenied, setOnlyDenied] = useState(false);
+  const [confirmDeleteDoor, setConfirmDeleteDoor] = useState(false);
 
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["access-admin"] });
 
@@ -118,6 +122,17 @@ function AccessAdminPage() {
     onSuccess: () => {
       setDoorDraft(null);
       toast.success("Dörren är sparad");
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(errorMessage(e)),
+  });
+
+  const deleteDoorM = useMutation({
+    mutationFn: (doorId: string) => deleteDoorFn({ data: { id: doorId } }),
+    onSuccess: () => {
+      setConfirmDeleteDoor(false);
+      setDoorDraft(null);
+      toast.success("Dörren är borttagen");
       invalidate();
     },
     onError: (e: Error) => toast.error(errorMessage(e)),
@@ -470,7 +485,18 @@ function AccessAdminPage() {
                 />
                 Läsaren är ansluten
               </label>
-              <div className="flex justify-end pt-2">
+              <div className="flex flex-wrap justify-between gap-2 pt-2">
+                {doorDraft.id ? (
+                  <Button
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setConfirmDeleteDoor(true)}
+                  >
+                    Ta bort dörren
+                  </Button>
+                ) : (
+                  <span />
+                )}
                 <Button
                   disabled={!doorDraft.name.trim() || saveDoorM.isPending}
                   onClick={() => saveDoorM.mutate(doorDraft)}
@@ -482,6 +508,25 @@ function AccessAdminPage() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmDeleteDoor}
+        onOpenChange={setConfirmDeleteDoor}
+        title={`Ta bort ${doorDraft?.name || "dörren"}?`}
+        pending={deleteDoorM.isPending}
+        onConfirm={() => doorDraft?.id && deleteDoorM.mutate(doorDraft.id)}
+        description={
+          <>
+            <p>
+              Dörren tas bort ur passersystemet tillsammans med dess passagelogg. Nycklar som gällde
+              dörren fungerar inte längre där. Det går inte att ångra.
+            </p>
+            <p>
+              Är läsaren bara tillfälligt ur drift kan du i stället avmarkera ”Läsaren är ansluten”.
+            </p>
+          </>
+        }
+      />
 
       <Dialog open={!!keyDraft} onOpenChange={(v) => !v && setKeyDraft(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">

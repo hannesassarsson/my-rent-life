@@ -1210,7 +1210,11 @@ export const saveContractor = createServerFn({ method: "POST" })
       agreement_note: data.agreementNote ?? null,
     };
     const { error } = data.id
-      ? await supabase.from("contractors").update(row).eq("id", data.id)
+      ? await supabase
+          .from("contractors")
+          .update(row)
+          .eq("id", data.id)
+          .eq("organization_id", orgId)
       : await supabase.from("contractors").insert(row);
     if (error) throw dbError(error);
     return { ok: true };
@@ -1424,6 +1428,8 @@ export const updateResource = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       id,
+      name: z.string().trim().min(1).max(120).optional(),
+      location: z.string().trim().max(200).optional(),
       slotMinutes: z
         .number()
         .int()
@@ -1444,10 +1450,12 @@ export const updateResource = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Db;
-    await requirePermission(supabase, context.userId, "bookings.edit");
+    const { orgId } = await requirePermission(supabase, context.userId, "bookings.edit");
     const { error } = await supabase
       .from("resources")
       .update({
+        ...(data.name ? { name: data.name } : {}),
+        ...(data.location !== undefined ? { location: data.location || null } : {}),
         slot_minutes: data.slotMinutes,
         open_from: data.openFrom,
         open_to: data.openTo,
@@ -1456,7 +1464,8 @@ export const updateResource = createServerFn({ method: "POST" })
         cancel_hours: data.cancelHours,
         is_active: data.isActive,
       })
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .eq("organization_id", orgId);
     if (error) throw dbError(error);
     return { ok: true };
   });
@@ -1536,6 +1545,8 @@ export const saveMaintenanceProject = createServerFn({ method: "POST" })
       year: z.number().int().min(1900).max(2200),
       status: projectStatus,
       note: longText.optional(),
+      budget: z.number().min(0).max(1_000_000_000).nullable().optional(),
+      propertyId: id.nullable().optional(),
     }),
   )
   .middleware([requireSupabaseAuth])
@@ -1548,9 +1559,15 @@ export const saveMaintenanceProject = createServerFn({ method: "POST" })
       year: data.year,
       status: data.status,
       note: data.note ?? null,
+      ...(data.budget !== undefined ? { budget: data.budget } : {}),
+      ...(data.propertyId !== undefined ? { property_id: data.propertyId } : {}),
     };
     const { error } = data.id
-      ? await supabase.from("maintenance_projects").update(row).eq("id", data.id)
+      ? await supabase
+          .from("maintenance_projects")
+          .update(row)
+          .eq("id", data.id)
+          .eq("organization_id", orgId)
       : await supabase.from("maintenance_projects").insert(row);
     if (error) throw dbError(error);
     return { ok: true };
@@ -1882,9 +1899,9 @@ export const updateUnit = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       id,
-      monthlyAmount: z.number().min(0).max(1_000_000),
-      sizeSqm: z.number().min(1).max(10_000),
-      rooms: z.number().min(0).max(100),
+      monthlyAmount: z.number().min(0).max(1_000_000).nullable(),
+      sizeSqm: z.number().min(1).max(10_000).nullable(),
+      rooms: z.number().min(0).max(100).nullable(),
       tenure,
       status: z.enum(["active", "vacant", "renovation"]),
       storage: z.string().trim().max(200),

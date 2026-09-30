@@ -1745,6 +1745,10 @@ export type Database = {
         Args: { _request_id: string; _title: string; _body: string };
         Returns: undefined;
       };
+      remove_member: {
+        Args: { _user_id: string };
+        Returns: undefined;
+      };
       set_member_role: {
         Args: { _user_id: string; _role: Database["public"]["Enums"]["app_role"] };
         Returns: undefined;

@@ -21,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { errorMessage } from "@/lib/errors";
+import { updateDocument } from "@/lib/manage.functions";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export const Route = createFileRoute("/_authenticated/admin/dokument")({
   head: () => ({ meta: [{ title: "Dokument – Boendeplattformen" }] }),
@@ -28,6 +30,8 @@ export const Route = createFileRoute("/_authenticated/admin/dokument")({
 });
 
 type Draft = {
+  /** Satt när ett befintligt dokument ändras; då byts inte filen. */
+  id?: string;
   title: string;
   docType: string;
   scope: "organization" | "property" | "unit";
@@ -49,10 +53,12 @@ function AdminDocumentsPage() {
   const fn = useServerFn(getAdminDocuments);
   const saveFn = useServerFn(saveDocument);
   const deleteFn = useServerFn(deleteDocument);
+  const updateFn = useServerFn(updateDocument);
   const qc = useQueryClient();
   const { data, isPending } = useQuery({ queryKey: ["admin-documents"], queryFn: () => fn() });
   const [draft, setDraft] = useState<Draft | null>(null);
   const [q, setQ] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["admin-documents"] });
@@ -61,6 +67,16 @@ function AdminDocumentsPage() {
 
   const save = useMutation({
     mutationFn: async (d: Draft) => {
+      const scope =
+        d.scope === "property"
+          ? { kind: "property" as const, propertyId: d.propertyId }
+          : d.scope === "unit"
+            ? { kind: "unit" as const, unitId: d.unitId }
+            : { kind: "organization" as const };
+      if (d.id) {
+        await updateFn({ data: { id: d.id, title: d.title, docType: d.docType, scope } });
+        return;
+      }
       if (!d.file || !data) throw new Error("Välj en fil");
       checkFile(d.file, DOCUMENT_TYPES);
       const storagePath = await uploadFile(`${data.orgId}/documents`, d.file);
@@ -68,21 +84,16 @@ function AdminDocumentsPage() {
         data: {
           title: d.title,
           docType: d.docType,
-          scope:
-            d.scope === "property"
-              ? { kind: "property", propertyId: d.propertyId }
-              : d.scope === "unit"
-                ? { kind: "unit", unitId: d.unitId }
-                : { kind: "organization" },
+          scope,
           storagePath,
           fileKind: fileKindOf(d.file),
           fileSize: formatBytes(d.file.size),
         },
       });
     },
-    onSuccess: () => {
+    onSuccess: (_r, d) => {
       setDraft(null);
-      toast.success("Dokumentet är uppladdat");
+      toast.success(d.id ? "Dokumentet är sparat" : "Dokumentet är uppladdat");
       invalidate();
     },
     onError: (e: Error) => toast.error(errorMessage(e)),
@@ -92,6 +103,8 @@ function AdminDocumentsPage() {
     mutationFn: (id: string) => deleteFn({ data: { id } }),
     onSuccess: () => {
       toast.success("Dokumentet är borttaget");
+      setConfirmDelete(false);
+      setDraft(null);
       invalidate();
     },
     onError: (e: Error) => toast.error(errorMessage(e)),
@@ -104,7 +117,7 @@ function AdminDocumentsPage() {
   );
   const valid =
     !!draft?.title.trim() &&
-    !!draft.file &&
+    (!!draft.id || !!draft.file) &&
     (draft.scope !== "property" || !!draft.propertyId) &&
     (draft.scope !== "unit" || !!draft.unitId);
 
@@ -149,13 +162,20 @@ function AdminDocumentsPage() {
                 <OpenFileButton path={d.storage_path} />
                 <Button
                   size="sm"
-                  variant="ghost"
-                  disabled={remove.isPending}
-                  onClick={() => {
-                    if (window.confirm(`Ta bort "${d.title}"?`)) remove.mutate(d.id);
-                  }}
+                  variant="outline"
+                  onClick={() =>
+                    setDraft({
+                      id: d.id,
+                      title: d.title,
+                      docType: d.doc_type,
+                      scope: d.unit_id ? "unit" : d.property_id ? "property" : "organization",
+                      propertyId: d.property_id ?? "",
+                      unitId: d.unit_id ?? "",
+                      file: null,
+                    })
+                  }
                 >
-                  Ta bort
+                  Ändra
                 </Button>
               </li>
             ))}
@@ -166,11 +186,11 @@ function AdminDocumentsPage() {
       <Dialog open={!!draft} onOpenChange={(v) => !v && setDraft(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Ladda upp dokument</DialogTitle>
+            <DialogTitle>{draft?.id ? "Ändra dokument" : "Ladda upp dokument"}</DialogTitle>
           </DialogHeader>
           {draft ? (
             <div className="space-y-3">
-              <div className="space-y-2">
+              <div className={draft.id ? "hidden" : "space-y-2"}>
                 <Label htmlFor="doc-file">Fil</Label>
                 <Input
                   id="doc-file"
@@ -278,12 +298,40 @@ function AdminDocumentsPage() {
                 disabled={!valid || save.isPending}
                 onClick={() => save.mutate(draft)}
               >
-                {save.isPending ? "Laddar upp…" : "Ladda upp"}
+                {save.isPending
+                  ? draft.id
+                    ? "Sparar…"
+                    : "Laddar upp…"
+                  : draft.id
+                    ? "Spara ändringarna"
+                    : "Ladda upp"}
               </Button>
+              {draft.id ? (
+                <Button
+                  variant="ghost"
+                  className="w-full text-destructive hover:text-destructive"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  Ta bort dokumentet
+                </Button>
+              ) : null}
             </div>
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Ta bort ${draft?.title || "dokumentet"}?`}
+        pending={remove.isPending}
+        onConfirm={() => draft?.id && remove.mutate(draft.id)}
+        description={
+          <p>
+            Dokumentet och filen tas bort och syns inte längre för boende. Det går inte att ångra.
+          </p>
+        }
+      />
     </div>
   );
 }
